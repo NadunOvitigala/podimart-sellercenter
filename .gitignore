@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.production
+.env.local
+.env.*.local
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+frontend/dist/
+
+# Local data
+backend/data/
+backend/uploads/
+*.local.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# AWS
+.aws-sam/

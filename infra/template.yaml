@@ -1,0 +1,367 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Podimart Seller Center — React on S3/CloudFront, Python Lambda API, Cognito, shared DynamoDB/S3
+
+Globals:
+  Function:
+    Timeout: 15
+    MemorySize: 512
+    Runtime: python3.14
+
+Parameters:
+  CreateSharedData:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set false if the podimart stack already created DynamoDB tables and the photo bucket.
+  DeployFrontend:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Leave false to deploy API + Cognito + data only. Set true later for S3/CloudFront website hosting.
+  SellersTableName:
+    Type: String
+    Default: podimart-sellers
+  ProductsTableName:
+    Type: String
+    Default: podimart-products
+  ExistingPhotoBucket:
+    Type: String
+    Default: ""
+    Description: Required when CreateSharedData is false.
+  BuyerSiteOrigin:
+    Type: String
+    Default: ""
+    Description: Public buyer site origin (CloudFront URL or https://podimart.lk)
+
+Conditions:
+  ShouldCreateSharedData: !Equals [!Ref CreateSharedData, "true"]
+  ShouldDeployFrontend: !Equals [!Ref DeployFrontend, "true"]
+
+Resources:
+  SellerUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: podimart-sellercenter
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+          RequireUppercase: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+        - Name: name
+          Required: false
+          Mutable: true
+
+  SellerUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: sellercenter-web
+      UserPoolId: !Ref SellerUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders: [COGNITO]
+
+  SellersTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ShouldCreateSharedData
+    Properties:
+      TableName: !Ref SellersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: slug
+          AttributeType: S
+        - AttributeName: city
+          AttributeType: S
+        - AttributeName: cognito_sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: slug
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: city-index
+          KeySchema:
+            - AttributeName: city
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: cognito-sub-index
+          KeySchema:
+            - AttributeName: cognito_sub
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ShouldCreateSharedData
+    Properties:
+      TableName: !Ref ProductsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: seller_id
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: seller-index
+          KeySchema:
+            - AttributeName: seller_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: category-index
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateSharedData
+    Properties:
+      BucketName: !Sub podimart-photos-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [GET, PUT, HEAD]
+            AllowedHeaders: ["*"]
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldDeployFrontend
+    Properties:
+      BucketName: !Sub podimart-sellercenter-web-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: ShouldDeployFrontend
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub sellercenter-oac-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: ShouldDeployFrontend
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: web
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref FrontendOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: ShouldDeployFrontend
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+
+  PhotoOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: ShouldCreateSharedData
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub sellercenter-photos-oac-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  PhotoDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: ShouldCreateSharedData
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - Id: photos
+            DomainName: !GetAtt PhotoBucket.RegionalDomainName
+            OriginAccessControlId: !Ref PhotoOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: photos
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+
+  PhotoBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: ShouldCreateSharedData
+    Properties:
+      Bucket: !Ref PhotoBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${PhotoBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${PhotoDistribution}
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend
+      Handler: app.main.handler
+      Environment:
+        Variables:
+          AUTH_MODE: cognito
+          STORAGE: dynamodb
+          TABLE_SELLERS: !If
+            - ShouldCreateSharedData
+            - !Ref SellersTable
+            - !Ref SellersTableName
+          TABLE_PRODUCTS: !If
+            - ShouldCreateSharedData
+            - !Ref ProductsTable
+            - !Ref ProductsTableName
+          S3_BUCKET: !If
+            - ShouldCreateSharedData
+            - !Ref PhotoBucket
+            - !Ref ExistingPhotoBucket
+          PUBLIC_ASSET_BASE: !If
+            - ShouldCreateSharedData
+            - !Sub "https://${PhotoDistribution.DomainName}"
+            - ""
+          COGNITO_USER_POOL_ID: !Ref SellerUserPool
+          COGNITO_CLIENT_ID: !Ref SellerUserPoolClient
+          CORS_ORIGINS: !If
+            - ShouldDeployFrontend
+            - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://sellercenter.podimart.lk,https://podimart.lk,https://${FrontendDistribution.DomainName},${BuyerSiteOrigin}"
+            - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://sellercenter.podimart.lk,https://podimart.lk,${BuyerSiteOrigin}"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !If
+              - ShouldCreateSharedData
+              - !Ref SellersTable
+              - !Ref SellersTableName
+        - DynamoDBCrudPolicy:
+            TableName: !If
+              - ShouldCreateSharedData
+              - !Ref ProductsTable
+              - !Ref ProductsTableName
+        - S3CrudPolicy:
+            BucketName: !If
+              - ShouldCreateSharedData
+              - !Ref PhotoBucket
+              - !Ref ExistingPhotoBucket
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: ANY
+
+Outputs:
+  ApiUrl:
+    Description: Seller Center API
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  CognitoUserPoolId:
+    Value: !Ref SellerUserPool
+  CognitoClientId:
+    Value: !Ref SellerUserPoolClient
+  FrontendBucketName:
+    Condition: ShouldDeployFrontend
+    Value: !Ref FrontendBucket
+  CloudFrontUrl:
+    Condition: ShouldDeployFrontend
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+  PhotoCdnUrl:
+    Condition: ShouldCreateSharedData
+    Value: !Sub "https://${PhotoDistribution.DomainName}"
+  PhotoBucketName:
+    Value: !If
+      - ShouldCreateSharedData
+      - !Ref PhotoBucket
+      - !Ref ExistingPhotoBucket

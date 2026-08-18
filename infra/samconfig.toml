@@ -1,0 +1,17 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "podimart-sellercenter"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+region = "ap-south-1"
+resolve_s3 = true
+s3_prefix = "podimart-sellercenter"
+parameter_overrides = "CreateSharedData=true DeployFrontend=true BuyerSiteOrigin=https://d26jjlyflvm3tp.cloudfront.net"
+image_repositories = []
