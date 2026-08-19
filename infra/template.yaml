@@ -331,6 +331,11 @@ Resources:
               - ShouldCreateSharedData
               - !Ref PhotoBucket
               - !Ref ExistingPhotoBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt SellerUserPool.Arn
       Events:
         Proxy:
           Type: HttpApi

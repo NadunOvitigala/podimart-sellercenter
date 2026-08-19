@@ -64,6 +64,24 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+let pendingCoverFile: File | null = null;
+
+export function setPendingCover(file: File | null): void {
+  pendingCoverFile = file;
+}
+
+export function getPendingCover(): File | null {
+  return pendingCoverFile;
+}
+
+export async function savePendingCover(): Promise<void> {
+  const file = pendingCoverFile;
+  pendingCoverFile = null;
+  if (!file) return;
+  const { url } = await api.upload(file);
+  await api.updateMe({ avatar_url: url });
+}
+
 export const api = {
   categories: () => request<Category[]>("/categories"),
   cities: () => request<string[]>("/cities"),
@@ -84,11 +102,12 @@ export const api = {
     }),
   updateMe: (body: Record<string, string>) =>
     request<Seller>("/me", { method: "PUT", body: JSON.stringify(body) }),
-  createProduct: (body: Record<string, string | number>) =>
+  createProduct: (body: Record<string, string | number | string[]>) =>
     request<Product>("/products", { method: "POST", body: JSON.stringify(body) }),
-  updateProduct: (id: string, body: Record<string, string | number>) =>
+  updateProduct: (id: string, body: Record<string, string | number | string[]>) =>
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) => request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
+  deleteShop: () => request<{ ok: boolean }>("/me", { method: "DELETE" }),
   upload: async (file: File) => {
     const data = new FormData();
     data.append("file", file);
@@ -98,4 +117,9 @@ export const api = {
 
 export function formatPrice(value: number): string {
   return `Rs ${value.toLocaleString("en-LK")}`;
+}
+
+export function productCode(product: { id: string; code?: string }): string {
+  if (product.code?.trim()) return product.code.trim().toUpperCase();
+  return product.id ? `PM-${product.id.slice(0, 6).toUpperCase()}` : "";
 }

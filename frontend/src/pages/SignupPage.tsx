@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, setShopDraft } from "../api";
+import { api, savePendingCover, setPendingCover, setShopDraft } from "../api";
 import { useAuth } from "../auth";
+import { FilePicker } from "../components/FilePicker";
 import { cognitoEnabled, signUpCognito } from "../cognito";
 
 export function SignupPage() {
@@ -9,11 +10,14 @@ export function SignupPage() {
   const { login } = useAuth();
   const [cities, setCities] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [coverPreview, setCoverPreview] = useState("");
+  const [coverFileName, setCoverFileName] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
-    city: "Colombo",
+    passwordConfirm: "",
+    city: "Western Province",
     whatsapp: "",
     phone: "",
   });
@@ -25,6 +29,10 @@ export function SignupPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (form.password !== form.passwordConfirm) {
+      setError("Passwords do not match.");
+      return;
+    }
     try {
       if (cognitoEnabled) {
         setShopDraft({
@@ -37,8 +45,16 @@ export function SignupPage() {
         navigate(`/confirm?email=${encodeURIComponent(form.email)}`);
         return;
       }
-      const data = await api.signup(form);
+      const data = await api.signup({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        city: form.city,
+        whatsapp: form.whatsapp,
+        phone: form.phone,
+      });
       login(data.token);
+      await savePendingCover();
       navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create shop.");
@@ -49,13 +65,13 @@ export function SignupPage() {
     <div className="wrap" style={{ maxWidth: 520, paddingTop: 40 }}>
       <h1>Open a free shop</h1>
       <p className="lede">
-        No website needed. Buyers will find you on podimart.lk by category and city, then
+        No website needed. Buyers will find you on Podimart Marketplace by category and province, then
         message you on WhatsApp.
       </p>
       <form className="form" onSubmit={onSubmit}>
         {error ? <div className="error">{error}</div> : null}
         <label>
-          Shop name
+          Shop Name
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -63,6 +79,25 @@ export function SignupPage() {
             placeholder="Maya's Home Cakes"
           />
         </label>
+        <div className="file-field">
+          <span>Shop Cover Photo</span>
+          <FilePicker
+            fileName={coverFileName}
+            onFiles={(files) => {
+              const file = files[0];
+              setPendingCover(file ?? null);
+              setCoverFileName(file?.name || "");
+              setCoverPreview(file ? URL.createObjectURL(file) : "");
+            }}
+          />
+        </div>
+        {coverPreview ? (
+          <img
+            src={coverPreview}
+            alt=""
+            style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 12 }}
+          />
+        ) : null}
         <label>
           Email
           <input
@@ -80,10 +115,22 @@ export function SignupPage() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required
             minLength={8}
+            autoComplete="new-password"
           />
         </label>
         <label>
-          City
+          Confirm Password
+          <input
+            type="password"
+            value={form.passwordConfirm}
+            onChange={(e) => setForm({ ...form, passwordConfirm: e.target.value })}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </label>
+        <label>
+          Province
           <select
             value={form.city}
             onChange={(e) => setForm({ ...form, city: e.target.value })}
@@ -94,7 +141,7 @@ export function SignupPage() {
           </select>
         </label>
         <label>
-          WhatsApp number
+          WhatsApp Number
           <input
             value={form.whatsapp}
             onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}

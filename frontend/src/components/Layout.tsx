@@ -13,32 +13,41 @@ export function Layout() {
         <div className="wrap header-row">
           <NavLink to="/" className="brand">
             <img src="/images/logo-sellercenter.png" alt="" />
-            Seller Center
+            <span className="brand-text">
+              <span className="brand-name">Seller Center</span>
+              <span className="brand-mark">Podimart Marketplace</span>
+            </span>
           </NavLink>
           <nav className="nav">
-            <a href={PUBLIC_URL}>View marketplace</a>
-            {loggedIn ? (
-              <>
-                <NavLink to="/dashboard">My shop</NavLink>
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  onClick={() => {
-                    logout();
-                    navigate("/login");
-                  }}
-                >
-                  Log out
-                </button>
-              </>
-            ) : (
-              <>
-                <NavLink to="/login">Log in</NavLink>
-                <NavLink to="/signup" className="btn btn-clay">
-                  Open a free shop
-                </NavLink>
-              </>
-            )}
+            <div className="nav-links">
+              <a href={PUBLIC_URL}>Marketplace</a>
+              <NavLink to="/about">About us</NavLink>
+              <NavLink to="/contact">Contact us</NavLink>
+            </div>
+            <div className="nav-actions">
+              {loggedIn ? (
+                <>
+                  <NavLink to="/dashboard">My Shop</NavLink>
+                  <button
+                    className="btn btn-outline"
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      navigate("/login");
+                    }}
+                  >
+                    Log out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <NavLink to="/login">Log in</NavLink>
+                  <NavLink to="/signup" className="btn btn-clay">
+                    Open a free shop
+                  </NavLink>
+                </>
+              )}
+            </div>
           </nav>
         </div>
       </header>
@@ -50,7 +59,12 @@ export function Layout() {
           <strong className="serif">Podimart Seller Center</strong>
           <p>
             Manage your shop here. Buyers see your products on{" "}
-            <a href={PUBLIC_URL}>podimart.lk</a>.
+            <a href={PUBLIC_URL}>Podimart Marketplace</a>.
+          </p>
+          <p>
+            <NavLink to="/about">About us</NavLink>
+            {" · "}
+            <NavLink to="/contact">Contact us</NavLink>
           </p>
         </div>
       </footer>

@@ -13,13 +13,64 @@ from app.auth import (
     hash_password,
     verify_password,
 )
-from app.catalog import CATEGORIES, CITIES
+from app.catalog import CATEGORIES, CITIES, category_by_id, subcategory_ids
 from app.config import settings
-from app.schemas import BootstrapIn, LoginIn, ProductIn, ProfileIn, SignupIn, public_product, public_seller
+from app.schemas import (
+    BootstrapIn,
+    LoginIn,
+    ProductIn,
+    ProfileIn,
+    SignupIn,
+    public_product,
+    public_seller,
+)
 from app.seed import unique_slug
 from app.store import Store, get_store, new_id, now_iso
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def _shop_prefix(seller: dict[str, Any]) -> str:
+    slug = "".join(ch for ch in str(seller.get("slug") or "") if ch.isalnum()).upper()
+    return (slug[:3] or "PM").ljust(3, "X")
+
+
+def _next_product_code(store: Store, seller: dict[str, Any]) -> str:
+    prefix = _shop_prefix(seller)
+    used: set[str] = set()
+    highest = 0
+    for item in store.list_products(seller_id=seller["id"]):
+        code = str(item.get("code") or "").upper()
+        used.add(code)
+        marker = f"{prefix}-"
+        if code.startswith(marker) and code[len(marker) :].isdigit():
+            highest = max(highest, int(code[len(marker) :]))
+    number = highest + 1
+    while True:
+        candidate = f"{prefix}-{number:03d}"
+        if candidate not in used:
+            return candidate
+        number += 1
+
+
+def _product_image_fields(body: ProductIn) -> dict[str, Any]:
+    images = [url.strip() for url in body.image_urls if url.strip()]
+    cover = body.image_url.strip()
+    if cover and cover not in images:
+        images = [cover, *images]
+    images = images[:8]
+    return {
+        "image_url": images[0] if images else "",
+        "image_urls": images,
+    }
+
+
+def _validate_category(category: str, subcategory: str) -> None:
+    if not category_by_id(category):
+        raise HTTPException(status_code=400, detail="Unknown category.")
+    allowed = subcategory_ids(category)
+    if allowed and subcategory not in allowed:
+        raise HTTPException(status_code=400, detail="Please pick a subcategory.")
 
 
 def _json_product(product: dict[str, Any]) -> dict[str, Any]:
@@ -141,7 +192,7 @@ def create_app() -> FastAPI:
         if _store.get_user_by_email(email) or _store.get_seller_by_email(email):
             raise HTTPException(status_code=400, detail="That email already has a shop.")
         if body.city not in CITIES:
-            raise HTTPException(status_code=400, detail="Please pick a city from the list.")
+            raise HTTPException(status_code=400, detail="Please pick a province from the list.")
         user_sub = new_id()
         _store.put_user(
             {
@@ -192,7 +243,7 @@ def create_app() -> FastAPI:
             products = [_json_product(p) for p in _store.list_products(seller_id=existing["id"])]
             return {"seller": public_seller(existing), "products": products}
         if body.city not in CITIES:
-            raise HTTPException(status_code=400, detail="Please pick a city from the list.")
+            raise HTTPException(status_code=400, detail="Please pick a province from the list.")
         seller = _new_seller(
             _store,
             email=identity.email,
@@ -219,12 +270,32 @@ def create_app() -> FastAPI:
         seller = _require_seller(_store, identity)
         updates = body.model_dump(exclude_unset=True)
         if "city" in updates and updates["city"] not in CITIES:
-            raise HTTPException(status_code=400, detail="Please pick a city from the list.")
+            raise HTTPException(status_code=400, detail="Please pick a province from the list.")
         if "name" in updates and updates["name"]:
             updates["name"] = updates["name"].strip()
         seller.update({k: v for k, v in updates.items() if v is not None})
         _store.put_seller(seller)
         return public_seller(seller)
+
+    @app.delete("/me")
+    def delete_me(
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        if not _store.delete_seller(seller["id"]):
+            raise HTTPException(status_code=404, detail="Shop not found.")
+        if settings.auth_mode.lower() == "cognito" and settings.cognito_user_pool_id:
+            import boto3
+
+            try:
+                boto3.client("cognito-idp", region_name=settings.aws_region).admin_delete_user(
+                    UserPoolId=settings.cognito_user_pool_id,
+                    Username=identity.email,
+                )
+            except Exception:
+                pass
+        return {"ok": True}
 
     @app.get("/products/{product_id}")
     def product_detail(
@@ -247,8 +318,7 @@ def create_app() -> FastAPI:
         _store: Store = Depends(db),
     ):
         seller = _require_seller(_store, identity)
-        if body.category not in {c["id"] for c in CATEGORIES}:
-            raise HTTPException(status_code=400, detail="Unknown category.")
+        _validate_category(body.category, body.subcategory)
         product = {
             "id": new_id(),
             "seller_id": seller["id"],
@@ -256,14 +326,16 @@ def create_app() -> FastAPI:
             "seller_name": seller["name"],
             "city": seller["city"],
             "category": body.category,
+            "subcategory": body.subcategory.strip(),
             "name": body.name.strip(),
             "description": body.description.strip(),
             "price": body.price,
             "lead_time": body.lead_time.strip(),
-            "image_url": body.image_url.strip(),
+            **_product_image_fields(body),
+            "code": _next_product_code(_store, seller),
             "created_at": now_iso(),
         }
-        return _store.put_product(product)
+        return _json_product(_store.put_product(product))
 
     @app.put("/products/{product_id}")
     def update_product(
@@ -276,19 +348,23 @@ def create_app() -> FastAPI:
         product = _store.get_product(product_id)
         if not product or product["seller_id"] != seller["id"]:
             raise HTTPException(status_code=404, detail="Product not found.")
+        _validate_category(body.category, body.subcategory)
+        if not product.get("code"):
+            product["code"] = _next_product_code(_store, seller)
         product.update(
             {
                 "name": body.name.strip(),
                 "category": body.category,
+                "subcategory": body.subcategory.strip(),
                 "price": body.price,
                 "description": body.description.strip(),
                 "lead_time": body.lead_time.strip(),
-                "image_url": body.image_url.strip() or product.get("image_url", ""),
+                **_product_image_fields(body),
                 "seller_name": seller["name"],
                 "city": seller["city"],
             }
         )
-        return _store.put_product(product)
+        return _json_product(_store.put_product(product))
 
     @app.delete("/products/{product_id}")
     def delete_product(

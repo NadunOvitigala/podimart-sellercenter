@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
+import { PUBLIC_URL } from "../sites";
 
 export function HomePage() {
   const { token } = useAuth();
@@ -8,23 +9,27 @@ export function HomePage() {
     <div className="wrap">
       <section className="hero">
         <div>
-          <p className="muted">sellercenter.podimart.lk</p>
           <h1>Run your home shop from one place</h1>
           <p className="lede">
-            Open a free shop, add cakes or crafts, and let buyers on podimart.lk
+            Open a free shop, add cakes or crafts, and let buyers on Podimart Marketplace
             message you on WhatsApp. No website needed.
           </p>
           <div className="hero-actions">
             {token ? (
-              <Link className="btn btn-clay" to="/dashboard">
-                Go to my shop
-              </Link>
+              <>
+                <Link className="btn btn-clay" to="/dashboard">
+                  Go to my shop
+                </Link>
+                <a className="btn btn-outline" href={PUBLIC_URL}>
+                  Marketplace
+                </a>
+              </>
             ) : (
               <>
                 <Link className="btn btn-clay" to="/signup">
                   Open a free shop
                 </Link>
-                <Link className="btn btn-ghost" to="/login">
+                <Link className="btn btn-clay" to="/login">
                   Log in
                 </Link>
               </>
@@ -37,7 +42,7 @@ export function HomePage() {
             </li>
             <li>
               <img src="/images/badge-verified.png" alt="" />
-              Your public shop lives on podimart.lk.
+              Your public shop lives on Podimart Marketplace.
             </li>
             <li>
               <img src="/images/badge-verified.png" alt="" />

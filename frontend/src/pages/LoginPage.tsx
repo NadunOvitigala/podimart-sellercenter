@@ -25,7 +25,7 @@ export function LoginPage() {
           await api.bootstrap(
             draft || {
               name: email.split("@")[0] || "My shop",
-              city: "Colombo",
+              city: "Western Province",
               whatsapp: "",
               phone: "",
             },

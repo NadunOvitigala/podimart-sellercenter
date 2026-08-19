@@ -1,8 +1,14 @@
+export type Subcategory = {
+  id: string;
+  name: string;
+};
+
 export type Category = {
   id: string;
   name: string;
   blurb: string;
   image: string;
+  subcategories?: Subcategory[];
 };
 
 export type Seller = {
@@ -27,11 +33,14 @@ export type Product = {
   seller_name: string;
   city: string;
   category: string;
+  subcategory?: string;
   name: string;
   description: string;
   price: number;
   lead_time: string;
   image_url: string;
+  image_urls?: string[];
+  code?: string;
   created_at: string;
 };
 

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, getShopDraft, setShopDraft } from "../api";
+import { api, getShopDraft, savePendingCover, setShopDraft } from "../api";
 import { useAuth } from "../auth";
 import {
   cognitoEnabled,
@@ -40,11 +40,12 @@ export function ConfirmPage() {
       await api.bootstrap(
         draft || {
           name: email.split("@")[0] || "My shop",
-          city: "Colombo",
+          city: "Western Province",
           whatsapp: "",
           phone: "",
         },
       );
+      await savePendingCover();
       setShopDraft(null);
       navigate("/dashboard");
     } catch (err) {
@@ -89,7 +90,7 @@ export function ConfirmPage() {
         <button className="btn btn-clay" type="submit">
           Confirm and open shop
         </button>
-        <button className="btn btn-ghost" type="button" onClick={() => void resend()}>
+        <button className="btn btn-clay" type="button" onClick={() => void resend()}>
           Resend code
         </button>
       </form>

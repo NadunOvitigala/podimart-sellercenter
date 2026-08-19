@@ -37,6 +37,7 @@ class Store(Protocol):
     def get_seller_by_slug(self, slug: str) -> dict[str, Any] | None: ...
     def get_seller_by_cognito_sub(self, sub: str) -> dict[str, Any] | None: ...
     def put_seller(self, seller: dict[str, Any]) -> dict[str, Any]: ...
+    def delete_seller(self, seller_id: str) -> bool: ...
     def list_sellers(self, city: str | None = None) -> list[dict[str, Any]]: ...
     def get_product(self, product_id: str) -> dict[str, Any] | None: ...
     def list_products(
@@ -95,6 +96,19 @@ class LocalStore:
             data["sellers"][existing] = seller
         self._write(data)
         return seller
+
+    def delete_seller(self, seller_id: str) -> bool:
+        data = self._read()
+        seller = next((s for s in data["sellers"] if s["id"] == seller_id), None)
+        if not seller:
+            return False
+        email = (seller.get("email") or "").lower()
+        data["sellers"] = [s for s in data["sellers"] if s["id"] != seller_id]
+        data["products"] = [p for p in data["products"] if p.get("seller_id") != seller_id]
+        if email:
+            data["users"] = [u for u in data["users"] if (u.get("email") or "").lower() != email]
+        self._write(data)
+        return True
 
     def list_sellers(self, city: str | None = None) -> list[dict[str, Any]]:
         data = self._read()
@@ -202,6 +216,15 @@ class DynamoStore:
     def put_seller(self, seller: dict[str, Any]) -> dict[str, Any]:
         self.sellers.put_item(Item=seller)
         return seller
+
+    def delete_seller(self, seller_id: str) -> bool:
+        existing = self.get_seller(seller_id)
+        if not existing:
+            return False
+        for product in self.list_products(seller_id=seller_id):
+            self.products.delete_item(Key={"id": product["id"]})
+        self.sellers.delete_item(Key={"id": seller_id})
+        return True
 
     def list_sellers(self, city: str | None = None) -> list[dict[str, Any]]:
         if city:

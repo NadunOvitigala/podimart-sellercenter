@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AboutPage } from "./pages/AboutPage";
 import { AuthProvider } from "./auth";
 import { Layout } from "./components/Layout";
 import { ConfirmPage } from "./pages/ConfirmPage";
+import { ContactPage } from "./pages/ContactPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -15,6 +17,8 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/confirm" element={<ConfirmPage />} />
