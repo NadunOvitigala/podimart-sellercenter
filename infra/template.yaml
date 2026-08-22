@@ -25,6 +25,9 @@ Parameters:
   ProductsTableName:
     Type: String
     Default: podimart-products
+  OrdersTableName:
+    Type: String
+    Default: podimart-orders
   ExistingPhotoBucket:
     Type: String
     Default: ""
@@ -45,6 +48,15 @@ Resources:
       UserPoolName: podimart-sellercenter
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      EmailConfiguration:
+        EmailSendingAccount: DEVELOPER
+        From: "podimart.lk <no-reply@podimart.lk>"
+        ReplyToEmailAddress: hello@podimart.lk
+        SourceArn: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/podimart.lk
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Your podimart.lk Seller Center code
+        EmailMessage: "Your Podimart Seller Center confirmation code is {####}."
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -149,6 +161,28 @@ Resources:
         - IndexName: category-index
           KeySchema:
             - AttributeName: category
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ShouldCreateSharedData
+    Properties:
+      TableName: !Ref OrdersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: seller_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: seller-index
+          KeySchema:
+            - AttributeName: seller_id
               KeyType: HASH
           Projection:
             ProjectionType: ALL
@@ -301,6 +335,12 @@ Resources:
             - ShouldCreateSharedData
             - !Ref ProductsTable
             - !Ref ProductsTableName
+          TABLE_ORDERS: !If
+            - ShouldCreateSharedData
+            - !Ref OrdersTable
+            - !Ref OrdersTableName
+          EMAIL_PROVIDER: ses
+          SMTP_FROM: "podimart.lk <no-reply@podimart.lk>"
           S3_BUCKET: !If
             - ShouldCreateSharedData
             - !Ref PhotoBucket
@@ -326,6 +366,11 @@ Resources:
               - ShouldCreateSharedData
               - !Ref ProductsTable
               - !Ref ProductsTableName
+        - DynamoDBCrudPolicy:
+            TableName: !If
+              - ShouldCreateSharedData
+              - !Ref OrdersTable
+              - !Ref OrdersTableName
         - S3CrudPolicy:
             BucketName: !If
               - ShouldCreateSharedData
@@ -336,6 +381,11 @@ Resources:
               Action:
                 - cognito-idp:AdminDeleteUser
               Resource: !GetAtt SellerUserPool.Arn
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
       Events:
         Proxy:
           Type: HttpApi

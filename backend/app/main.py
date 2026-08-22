@@ -15,12 +15,17 @@ from app.auth import (
 )
 from app.catalog import CATEGORIES, CITIES, category_by_id, subcategory_ids
 from app.config import settings
+from app.notify import notify_seller
 from app.schemas import (
     BootstrapIn,
     LoginIn,
+    OrderIn,
     ProductIn,
     ProfileIn,
     SignupIn,
+    PAYMENT_METHOD_LABELS,
+    product_code,
+    product_payment_methods,
     public_product,
     public_seller,
 )
@@ -63,6 +68,11 @@ def _product_image_fields(body: ProductIn) -> dict[str, Any]:
         "image_url": images[0] if images else "",
         "image_urls": images,
     }
+
+
+def _product_payment_fields(body: ProductIn) -> dict[str, Any]:
+    methods = product_payment_methods({"payment_methods": body.payment_methods})
+    return {"payment_methods": methods}
 
 
 def _validate_category(category: str, subcategory: str) -> None:
@@ -311,6 +321,66 @@ def create_app() -> FastAPI:
             "seller": public_seller(seller) if seller else None,
         }
 
+    @app.post("/orders")
+    def create_order(body: OrderIn, _store: Store = Depends(db)):
+        product = _store.get_product(body.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        seller = _store.get_seller(product["seller_id"])
+        if not seller:
+            raise HTTPException(status_code=404, detail="Seller not found.")
+        allowed = product_payment_methods(product) or list(PAYMENT_METHOD_LABELS.keys())
+        payment_method = body.payment_method.strip()
+        if payment_method not in allowed:
+            raise HTTPException(status_code=400, detail="Please choose an allowed payment method.")
+        order_id = new_id()
+        unit = int(product.get("price") or 0)
+        quantity = body.quantity
+        total = unit * quantity if unit > 0 else 0
+        total_label = f"Rs {total:,}" if total > 0 else "Contact for price"
+        order = {
+            "id": order_id,
+            "reference": f"PM-ORD-{order_id[:6].upper()}",
+            "status": "pending",
+            "product_id": product["id"],
+            "product_name": product["name"],
+            "product_code": product_code(product),
+            "seller_id": seller["id"],
+            "seller_name": seller["name"],
+            "quantity": quantity,
+            "unit_price": unit,
+            "total": total,
+            "total_label": total_label,
+            "payment_method": payment_method,
+            "payment_method_label": PAYMENT_METHOD_LABELS.get(payment_method, payment_method),
+            "buyer_name": body.buyer_name.strip(),
+            "buyer_phone": body.buyer_phone.strip(),
+            "buyer_email": body.buyer_email.strip(),
+            "note": body.note.strip(),
+            "created_at": now_iso(),
+        }
+        _store.put_order(order)
+        notified = notify_seller(order, seller)
+        return {
+            "order": {
+                "reference": order["reference"],
+                "product_name": order["product_name"],
+                "quantity": order["quantity"],
+                "total_label": order["total_label"],
+                "payment_method": order["payment_method"],
+                "payment_method_label": order["payment_method_label"],
+            },
+            "notified": notified,
+        }
+
+    @app.get("/me/orders")
+    def my_orders(
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        return _store.list_orders(seller["id"])
+
     @app.post("/products")
     def create_product(
         body: ProductIn,
@@ -332,6 +402,7 @@ def create_app() -> FastAPI:
             "price": body.price,
             "lead_time": body.lead_time.strip(),
             **_product_image_fields(body),
+            **_product_payment_fields(body),
             "code": _next_product_code(_store, seller),
             "created_at": now_iso(),
         }
@@ -360,6 +431,7 @@ def create_app() -> FastAPI:
                 "description": body.description.strip(),
                 "lead_time": body.lead_time.strip(),
                 **_product_image_fields(body),
+                **_product_payment_fields(body),
                 "seller_name": seller["name"],
                 "city": seller["city"],
             }

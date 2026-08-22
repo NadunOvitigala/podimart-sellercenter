@@ -20,10 +20,16 @@ function firstShopName(name: string): string {
   return name.trim().split(/\s+/)[0] || "your";
 }
 
+function displayValue(value: string, empty = "Not set"): string {
+  return value.trim() ? value : empty;
+}
+
 export function DashboardPage() {
   const { token, ready, logout } = useAuth();
   const navigate = useNavigate();
   const [seller, setSeller] = useState<Seller | null>(null);
+  const [draft, setDraft] = useState<Seller | null>(null);
+  const [editing, setEditing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState("");
   const [cities, setCities] = useState<string[]>([]);
@@ -47,6 +53,7 @@ export function DashboardPage() {
       .me()
       .then((data) => {
         setSeller(data.seller);
+        setDraft(data.seller);
         setProducts(data.products);
         setCoverFileName(fileNameFromUrl(data.seller.avatar_url || ""));
       })
@@ -59,38 +66,60 @@ export function DashboardPage() {
       });
   }, [token, ready, navigate]);
 
+  function startEditing() {
+    if (!seller) return;
+    setDraft({ ...seller });
+    setCoverFileName(fileNameFromUrl(seller.avatar_url || ""));
+    setError("");
+    setSaved("");
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    if (!seller) return;
+    setDraft({ ...seller });
+    setCoverFileName(fileNameFromUrl(seller.avatar_url || ""));
+    setError("");
+    setSaved("");
+    setEditing(false);
+  }
+
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
-    if (!seller) return;
+    if (!draft) return;
     setError("");
     setSaved("");
     try {
       const updated = await api.updateMe({
-        name: seller.name,
-        city: seller.city,
-        bio: seller.bio,
-        whatsapp: seller.whatsapp,
-        phone: seller.phone,
-        email_public: seller.email_public,
-        pickup_notes: seller.pickup_notes,
-        delivery_notes: seller.delivery_notes,
-        avatar_url: seller.avatar_url,
+        name: draft.name,
+        city: draft.city,
+        bio: draft.bio,
+        whatsapp: draft.whatsapp,
+        phone: draft.phone,
+        email_public: draft.email_public,
+        pickup_notes: draft.pickup_notes,
+        delivery_notes: draft.delivery_notes,
+        avatar_url: draft.avatar_url,
       });
       setSeller(updated);
+      setDraft(updated);
+      setCoverFileName(fileNameFromUrl(updated.avatar_url || ""));
       setSaved("Shop details saved.");
+      setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
     }
   }
 
   async function onCoverUpload(file: File) {
-    if (!seller) return;
+    if (!draft) return;
     setUploadingCover(true);
     setError("");
     try {
       const { url } = await api.upload(file);
       const updated = await api.updateMe({ avatar_url: url });
       setSeller(updated);
+      setDraft(updated);
       setCoverFileName(file.name);
       setSaved("Shop cover photo saved.");
     } catch (err) {
@@ -120,7 +149,7 @@ export function DashboardPage() {
     }
   }
 
-  if (!seller) {
+  if (!seller || !draft) {
     return (
       <div className="wrap" style={{ paddingTop: 40 }}>
         {error ? <p className="error">{error}</p> : "Loading your shop…"}
@@ -165,164 +194,239 @@ export function DashboardPage() {
       </section>
 
       <div className="wrap" style={{ paddingTop: 28, paddingBottom: 40 }}>
-      <div className="product-layout">
-        <div className="stack-col">
-        <form className="panel form" onSubmit={saveProfile}>
-          <h2>Shop profile</h2>
-          {error ? <div className="error">{error}</div> : null}
-          {saved ? <p className="ok">{saved}</p> : null}
-          <label>
-            Shop Name
-            <input
-              value={seller.name}
-              onChange={(e) => setSeller({ ...seller, name: e.target.value })}
-            />
-          </label>
-          <label>
-            Province
-            <select
-              value={seller.city}
-              onChange={(e) => setSeller({ ...seller, city: e.target.value })}
-            >
-              {(cities.includes(seller.city) ? cities : [seller.city, ...cities]).map((city) => (
-                <option key={city}>{city}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            About your work
-            <textarea
-              value={seller.bio}
-              onChange={(e) => setSeller({ ...seller, bio: e.target.value })}
-            />
-          </label>
-          <label>
-            WhatsApp
-            <input
-              value={seller.whatsapp}
-              onChange={(e) => setSeller({ ...seller, whatsapp: e.target.value })}
-            />
-          </label>
-          <label>
-            Phone
-            <input
-              value={seller.phone}
-              onChange={(e) => setSeller({ ...seller, phone: e.target.value })}
-            />
-          </label>
-          <label>
-            Email buyers can use
-            <input
-              value={seller.email_public}
-              onChange={(e) => setSeller({ ...seller, email_public: e.target.value })}
-            />
-          </label>
-          <label>
-            Pickup notes
-            <input
-              value={seller.pickup_notes}
-              onChange={(e) => setSeller({ ...seller, pickup_notes: e.target.value })}
-            />
-          </label>
-          <label>
-            Delivery notes
-            <input
-              value={seller.delivery_notes}
-              onChange={(e) => setSeller({ ...seller, delivery_notes: e.target.value })}
-            />
-          </label>
-          <div className="file-field">
-            <span>Shop Cover Photo</span>
-            <FilePicker
-              fileName={coverFileName}
-              onFiles={(files) => void onCoverUpload(files[0])}
-            />
-            {uploadingCover ? <p className="muted">Uploading…</p> : null}
-            <p className="muted">This photo is shown as the shop cover behind the welcome heading.</p>
-          </div>
-          <button className="btn btn-clay" type="submit">
-            Save profile
-          </button>
-        </form>
-
-        <section className="panel danger-panel">
-          <h2>Remove shop</h2>
-          <p className="muted">
-            This removes your shop and all listings from Podimart Marketplace. Buyers will no longer
-            see them. This cannot be undone.
-          </p>
-          <button className="btn btn-danger" type="button" onClick={() => setConfirmRemoveShop(true)}>
-            Remove shop
-          </button>
-        </section>
-        </div>
-
-        <div>
-          <h2>Listings</h2>
-          {products.length === 0 ? (
-            <div className="empty">
-              <img src="/images/empty-listings.png" alt="" />
-              No products yet. Add your first cake or craft.
-            </div>
-          ) : (
-            products.map((product) => (
-              <div className="table-row" key={product.id}>
-                <img
-                  src={mediaUrl(product.image_url || product.image_urls?.[0]) || "/images/empty-listings.png"}
-                  alt=""
-                />
-                <div>
-                  <strong>{product.name}</strong>
-                  <div className="muted">Product ID: {productCode(product)}</div>
-                  <div className="muted">{formatPrice(product.price)}</div>
+        <div className="product-layout">
+          <div className="stack-col">
+            {editing ? (
+              <form className="panel form" onSubmit={saveProfile}>
+                <div className="panel-head">
+                  <h2>Edit shop profile</h2>
+                  <button className="btn btn-outline" type="button" onClick={cancelEditing}>
+                    Cancel
+                  </button>
                 </div>
-                <Link className="btn btn-clay" to={`/dashboard/edit/${product.id}`}>
-                  Edit
-                </Link>
-                <button className="btn btn-clay" type="button" onClick={() => void removeProduct(product.id)}>
-                  Remove
+                {error ? <div className="error">{error}</div> : null}
+                {saved ? <p className="ok">{saved}</p> : null}
+                <label>
+                  Shop Name
+                  <input
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Province
+                  <select
+                    value={draft.city}
+                    onChange={(e) => setDraft({ ...draft, city: e.target.value })}
+                  >
+                    {(cities.includes(draft.city) ? cities : [draft.city, ...cities]).map((city) => (
+                      <option key={city}>{city}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  About your work
+                  <textarea
+                    value={draft.bio}
+                    onChange={(e) => setDraft({ ...draft, bio: e.target.value })}
+                  />
+                </label>
+                <label>
+                  WhatsApp
+                  <input
+                    value={draft.whatsapp}
+                    onChange={(e) => setDraft({ ...draft, whatsapp: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Phone
+                  <input
+                    value={draft.phone}
+                    onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Email buyers can use
+                  <input
+                    value={draft.email_public}
+                    onChange={(e) => setDraft({ ...draft, email_public: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Pickup notes
+                  <input
+                    value={draft.pickup_notes}
+                    onChange={(e) => setDraft({ ...draft, pickup_notes: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Delivery notes
+                  <input
+                    value={draft.delivery_notes}
+                    onChange={(e) => setDraft({ ...draft, delivery_notes: e.target.value })}
+                  />
+                </label>
+                <div className="file-field">
+                  <span>Shop Cover Photo</span>
+                  <FilePicker
+                    fileName={coverFileName}
+                    onFiles={(files) => void onCoverUpload(files[0])}
+                  />
+                  {uploadingCover ? <p className="muted">Uploading…</p> : null}
+                  <p className="muted">
+                    This photo is shown as the shop cover behind the welcome heading.
+                  </p>
+                </div>
+                <button className="btn btn-clay" type="submit">
+                  Save profile
                 </button>
+              </form>
+            ) : (
+              <section className="panel">
+                <div className="panel-head">
+                  <h2>Shop profile</h2>
+                  <button className="btn btn-clay" type="button" onClick={startEditing}>
+                    Edit
+                  </button>
+                </div>
+                {error ? <div className="error">{error}</div> : null}
+                {saved ? <p className="ok">{saved}</p> : null}
+                <dl className="profile-view">
+                  <div>
+                    <dt>Shop Name</dt>
+                    <dd>{seller.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Province</dt>
+                    <dd>{seller.city}</dd>
+                  </div>
+                  <div className="profile-view-wide">
+                    <dt>About your work</dt>
+                    <dd>{displayValue(seller.bio, "No description yet.")}</dd>
+                  </div>
+                  <div>
+                    <dt>WhatsApp</dt>
+                    <dd>{displayValue(seller.whatsapp)}</dd>
+                  </div>
+                  <div>
+                    <dt>Phone</dt>
+                    <dd>{displayValue(seller.phone)}</dd>
+                  </div>
+                  <div>
+                    <dt>Email buyers can use</dt>
+                    <dd>{displayValue(seller.email_public)}</dd>
+                  </div>
+                  <div>
+                    <dt>Pickup notes</dt>
+                    <dd>{displayValue(seller.pickup_notes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Delivery notes</dt>
+                    <dd>{displayValue(seller.delivery_notes)}</dd>
+                  </div>
+                  <div className="profile-view-wide">
+                    <dt>Shop Cover Photo</dt>
+                    <dd>
+                      {coverUrl ? (
+                        <img className="profile-cover-thumb" src={coverUrl} alt="" />
+                      ) : (
+                        "No cover photo yet."
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+
+            <section className="panel danger-panel">
+              <h2>Remove shop</h2>
+              <p className="muted">
+                This removes your shop and all listings from Podimart Marketplace. Buyers will no
+                longer see them. This cannot be undone.
+              </p>
+              <button
+                className="btn btn-danger"
+                type="button"
+                onClick={() => setConfirmRemoveShop(true)}
+              >
+                Remove shop
+              </button>
+            </section>
+          </div>
+
+          <div>
+            <h2>Listings</h2>
+            {products.length === 0 ? (
+              <div className="empty">
+                <img src="/images/empty-listings.png" alt="" />
+                No products yet. Add your first cake or craft.
               </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-    {confirmRemoveShop ? (
-      <div
-        className="modal-backdrop"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="remove-shop-title"
-      >
-        <div className="modal-card">
-          <h2 id="remove-shop-title">Remove this shop?</h2>
-          <p>
-            This will permanently remove <strong>{seller.name}</strong> and all listings from
-            Podimart Marketplace. Buyers will no longer see them.
-          </p>
-          <p className="muted">This cannot be undone.</p>
-          <div className="modal-actions">
-            <button
-              className="btn btn-outline"
-              type="button"
-              disabled={removingShop}
-              onClick={() => setConfirmRemoveShop(false)}
-            >
-              No
-            </button>
-            <button
-              className="btn btn-danger"
-              type="button"
-              disabled={removingShop}
-              onClick={() => void removeShop()}
-            >
-              {removingShop ? "Removing…" : "Yes"}
-            </button>
+            ) : (
+              products.map((product) => (
+                <div className="table-row" key={product.id}>
+                  <img
+                    src={
+                      mediaUrl(product.image_url || product.image_urls?.[0]) ||
+                      "/images/empty-listings.png"
+                    }
+                    alt=""
+                  />
+                  <div>
+                    <strong>{product.name}</strong>
+                    <div className="muted">Product ID: {productCode(product)}</div>
+                    <div className="muted">{formatPrice(product.price)}</div>
+                  </div>
+                  <Link className="btn btn-clay" to={`/dashboard/edit/${product.id}`}>
+                    Edit
+                  </Link>
+                  <button
+                    className="btn btn-clay"
+                    type="button"
+                    onClick={() => void removeProduct(product.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
-    ) : null}
+      {confirmRemoveShop ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="remove-shop-title"
+        >
+          <div className="modal-card">
+            <h2 id="remove-shop-title">Remove this shop?</h2>
+            <p>
+              This will permanently remove <strong>{seller.name}</strong> and all listings from
+              Podimart Marketplace. Buyers will no longer see them.
+            </p>
+            <p className="muted">This cannot be undone.</p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                type="button"
+                disabled={removingShop}
+                onClick={() => setConfirmRemoveShop(false)}
+              >
+                No
+              </button>
+              <button
+                className="btn btn-danger"
+                type="button"
+                disabled={removingShop}
+                onClick={() => void removeShop()}
+              >
+                {removingShop ? "Removing…" : "Yes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

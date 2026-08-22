@@ -7,6 +7,11 @@ import type { Category, Product } from "../types";
 
 const MAX_PHOTOS = 8;
 
+const PAYMENT_OPTIONS = [
+  { id: "cash_on_delivery", label: "Cash on delivery" },
+  { id: "bank_transfer", label: "Bank transfer" },
+] as const;
+
 const empty = {
   name: "",
   category: "bakery",
@@ -15,6 +20,7 @@ const empty = {
   description: "",
   lead_time: "Order 2 days before",
   image_urls: [] as string[],
+  payment_methods: ["cash_on_delivery", "bank_transfer"] as string[],
 };
 
 function listingPhotos(product: Product): string[] {
@@ -61,6 +67,9 @@ export function ProductFormPage() {
         description: product.description,
         lead_time: product.lead_time,
         image_urls: listingPhotos(product),
+        payment_methods: product.payment_methods?.length
+          ? product.payment_methods
+          : [],
       });
       setListingCode(productCode(product));
     });
@@ -108,9 +117,22 @@ export function ProductFormPage() {
     }));
   }
 
+  function togglePayment(method: string) {
+    setForm((current) => {
+      const selected = current.payment_methods.includes(method)
+        ? current.payment_methods.filter((item) => item !== method)
+        : [...current.payment_methods, method];
+      return { ...current, payment_methods: selected };
+    });
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (form.payment_methods.length === 0) {
+      setError("Please choose at least one payment method.");
+      return;
+    }
     const body = {
       name: form.name,
       category: form.category,
@@ -120,6 +142,7 @@ export function ProductFormPage() {
       lead_time: form.lead_time,
       image_url: form.image_urls[0] || "",
       image_urls: form.image_urls,
+      payment_methods: form.payment_methods,
     };
     try {
       if (id) await api.updateProduct(id, body);
@@ -203,6 +226,19 @@ export function ProductFormPage() {
             onChange={(e) => setForm({ ...form, lead_time: e.target.value })}
           />
         </label>
+        <fieldset className="check-field">
+          <legend>Allowed payment methods</legend>
+          {PAYMENT_OPTIONS.map((option) => (
+            <label key={option.id} className="check-option">
+              <input
+                type="checkbox"
+                checked={form.payment_methods.includes(option.id)}
+                onChange={() => togglePayment(option.id)}
+              />
+              {option.label}
+            </label>
+          ))}
+        </fieldset>
         <div className="file-field">
           <span>Photos</span>
           <FilePicker

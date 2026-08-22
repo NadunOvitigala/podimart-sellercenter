@@ -31,6 +31,33 @@ def product_images(product: dict[str, Any]) -> list[str]:
     return cleaned[:8]
 
 
+def product_code(product: dict[str, Any]) -> str:
+    code = str(product.get("code") or "").strip().upper()
+    if code:
+        return code
+    raw = str(product.get("id") or "")[:6].upper()
+    return f"PM-{raw}" if raw else ""
+
+
+PAYMENT_METHOD_IDS = ("cash_on_delivery", "bank_transfer")
+PAYMENT_METHOD_LABELS = {
+    "cash_on_delivery": "Cash on delivery",
+    "bank_transfer": "Bank transfer",
+}
+
+
+def product_payment_methods(product: dict[str, Any]) -> list[str]:
+    raw = product.get("payment_methods") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    cleaned: list[str] = []
+    for item in raw:
+        value = str(item).strip()
+        if value in PAYMENT_METHOD_IDS and value not in cleaned:
+            cleaned.append(value)
+    return cleaned
+
+
 def public_product(product: dict[str, Any]) -> dict[str, Any]:
     images = product_images(product)
     return {
@@ -48,16 +75,9 @@ def public_product(product: dict[str, Any]) -> dict[str, Any]:
         "image_url": images[0] if images else "",
         "image_urls": images,
         "code": product_code(product),
+        "payment_methods": product_payment_methods(product),
         "created_at": str(product.get("created_at") or ""),
     }
-
-
-def product_code(product: dict[str, Any]) -> str:
-    code = str(product.get("code") or "").strip().upper()
-    if code:
-        return code
-    raw = str(product.get("id") or "")[:6].upper()
-    return f"PM-{raw}" if raw else ""
 
 
 class SignupIn(BaseModel):
@@ -102,3 +122,21 @@ class ProductIn(BaseModel):
     lead_time: str = Field(default="Order 2 days before", max_length=80)
     image_url: str = Field(default="", max_length=500)
     image_urls: list[str] = Field(default_factory=list, max_length=8)
+    payment_methods: list[str] = Field(default_factory=list, max_length=2)
+
+
+PAYMENT_METHOD_IDS = ("cash_on_delivery", "bank_transfer")
+PAYMENT_METHOD_LABELS = {
+    "cash_on_delivery": "Cash on delivery",
+    "bank_transfer": "Bank transfer",
+}
+
+
+class OrderIn(BaseModel):
+    product_id: str = Field(min_length=4, max_length=40)
+    quantity: int = Field(ge=1, le=99)
+    payment_method: str = Field(min_length=2, max_length=40)
+    buyer_name: str = Field(min_length=2, max_length=80)
+    buyer_phone: str = Field(min_length=8, max_length=20)
+    buyer_email: str = Field(default="", max_length=120)
+    note: str = Field(default="", max_length=400)

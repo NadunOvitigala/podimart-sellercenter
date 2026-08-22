@@ -9,13 +9,19 @@ export function Layout() {
 
   return (
     <>
+      <div className="topbar">
+        <div className="wrap topbar-row">
+          <span>Seller tools for home businesses on podimart.lk</span>
+          <span className="topbar-hide">Free shop · Listings · WhatsApp orders</span>
+        </div>
+      </div>
       <header className="site-header">
         <div className="wrap header-row">
           <NavLink to="/" className="brand">
-            <img src="/images/logo-sellercenter.png" alt="" />
+            <img src="/images/logo-icon.png" alt="" />
             <span className="brand-text">
               <span className="brand-name">Seller Center</span>
-              <span className="brand-mark">Podimart Marketplace</span>
+              <span className="brand-mark">podimart.lk</span>
             </span>
           </NavLink>
           <nav className="nav">
@@ -27,7 +33,9 @@ export function Layout() {
             <div className="nav-actions">
               {loggedIn ? (
                 <>
-                  <NavLink to="/dashboard">My Shop</NavLink>
+                  <NavLink to="/dashboard" className="nav-quiet">
+                    My Shop
+                  </NavLink>
                   <button
                     className="btn btn-outline"
                     type="button"
@@ -41,7 +49,9 @@ export function Layout() {
                 </>
               ) : (
                 <>
-                  <NavLink to="/login">Log in</NavLink>
+                  <NavLink to="/login" className="nav-quiet">
+                    Log in
+                  </NavLink>
                   <NavLink to="/signup" className="btn btn-clay">
                     Open a free shop
                   </NavLink>
@@ -55,16 +65,41 @@ export function Layout() {
         <Outlet />
       </main>
       <footer className="site-footer">
-        <div className="wrap">
-          <strong className="serif">Podimart Seller Center</strong>
-          <p>
-            Manage your shop here. Buyers see your products on{" "}
-            <a href={PUBLIC_URL}>Podimart Marketplace</a>.
-          </p>
-          <p>
+        <div className="wrap footer-grid">
+          <div>
+            <NavLink to="/" className="brand footer-brand">
+              <img src="/images/logo-icon.png" alt="" />
+              <span className="brand-text">
+                <span className="brand-name">Seller Center</span>
+                <span className="brand-mark">podimart.lk</span>
+              </span>
+            </NavLink>
+            <p>
+              Manage your free shop, add listings, and reach buyers on podimart.lk. Buyers
+              contact you on WhatsApp.
+            </p>
+          </div>
+          <div>
+            <h3>Seller tools</h3>
+            <NavLink to="/dashboard">My shop</NavLink>
+            <NavLink to="/dashboard/new">Add a product</NavLink>
+            <NavLink to="/signup">Open a free shop</NavLink>
+          </div>
+          <div>
+            <h3>Marketplace</h3>
+            <a href={PUBLIC_URL}>Browse podimart.lk</a>
+            <a href={`${PUBLIC_URL}/browse`}>All listings</a>
+          </div>
+          <div>
+            <h3>Help</h3>
             <NavLink to="/about">About us</NavLink>
-            {" · "}
             <NavLink to="/contact">Contact us</NavLink>
+            <a href="mailto:hello@podimart.lk">hello@podimart.lk</a>
+          </div>
+        </div>
+        <div className="wrap footer-bottom">
+          <p>
+            © {new Date().getFullYear()} podimart.lk · Seller Center · Free listings
           </p>
         </div>
       </footer>

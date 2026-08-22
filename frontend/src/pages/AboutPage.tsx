@@ -20,7 +20,7 @@ export function AboutPage() {
           <a className="text-link" href={PUBLIC_URL}>
             Podimart Marketplace
           </a>
-          . They contact you directly. Podimart does not take the sale.
+          . They contact you directly.
         </p>
         <p>
           We built Seller Center so a home baker or crafter can go from signup to a public shop

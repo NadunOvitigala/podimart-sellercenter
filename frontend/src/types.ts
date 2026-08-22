@@ -41,6 +41,7 @@ export type Product = {
   image_url: string;
   image_urls?: string[];
   code?: string;
+  payment_methods?: string[];
   created_at: string;
 };
 
