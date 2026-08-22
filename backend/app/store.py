@@ -122,7 +122,12 @@ class LocalStore:
         out = []
         for seller in sellers:
             item = public_seller(seller)
-            item["product_count"] = sum(1 for p in products if p["seller_id"] == seller["id"])
+            item["product_count"] = sum(
+                1
+                for p in products
+                if p["seller_id"] == seller["id"]
+                and str(p.get("status") or "active").lower() != "disabled"
+            )
             out.append(item)
         return out
 
@@ -252,7 +257,11 @@ class DynamoStore:
         out = []
         for seller in sellers:
             item = public_seller(seller)
-            item["product_count"] = len(self.list_products(seller_id=seller["id"]))
+            item["product_count"] = sum(
+                1
+                for p in self.list_products(seller_id=seller["id"])
+                if str(p.get("status") or "active").lower() != "disabled"
+            )
             out.append(item)
         return out
 

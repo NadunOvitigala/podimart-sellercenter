@@ -341,6 +341,7 @@ Resources:
             - !Ref OrdersTableName
           EMAIL_PROVIDER: ses
           SMTP_FROM: "podimart.lk <no-reply@podimart.lk>"
+          CONTACT_TO_EMAIL: nadunovitigala@gmail.com
           S3_BUCKET: !If
             - ShouldCreateSharedData
             - !Ref PhotoBucket

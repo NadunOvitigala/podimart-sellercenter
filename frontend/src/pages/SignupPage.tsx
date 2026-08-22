@@ -62,7 +62,7 @@ export function SignupPage() {
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 520, paddingTop: 40 }}>
+    <div className="wrap auth-page">
       <h1>Open a free shop</h1>
       <p className="lede">
         No website needed. Buyers will find you on Podimart Marketplace by category and province, then

@@ -15,17 +15,24 @@ from app.auth import (
 )
 from app.catalog import CATEGORIES, CITIES, category_by_id, subcategory_ids
 from app.config import settings
-from app.notify import notify_seller
+from app.notify import notify_seller, send_contact_message
 from app.schemas import (
     BootstrapIn,
+    ContactIn,
     LoginIn,
     OrderIn,
+    PAYMENT_METHOD_LABELS,
     ProductIn,
+    ProductStatusIn,
     ProfileIn,
     SignupIn,
-    PAYMENT_METHOD_LABELS,
+    VARIATION_TYPE_IDS,
+    VARIATION_TYPE_LABELS,
     product_code,
+    product_is_active,
     product_payment_methods,
+    product_status,
+    product_variants,
     public_product,
     public_seller,
 )
@@ -75,6 +82,32 @@ def _product_payment_fields(body: ProductIn) -> dict[str, Any]:
     return {"payment_methods": methods}
 
 
+def _product_variant_fields(body: ProductIn) -> dict[str, Any]:
+    variants: list[dict[str, Any]] = []
+    for item in body.variants[:20]:
+        label = item.label.strip()
+        if not label:
+            continue
+        variants.append(
+            {
+                "id": (item.id.strip() or new_id()),
+                "label": label[:80],
+                "price": int(item.price),
+            }
+        )
+    variation_type = body.variation_type.strip().lower()
+    if variation_type not in VARIATION_TYPE_IDS:
+        variation_type = "other"
+    price = int(body.price)
+    if variants:
+        price = variants[0]["price"] if price <= 0 else price
+    return {
+        "variation_type": variation_type if variants else "",
+        "variants": variants,
+        "price": price,
+    }
+
+
 def _validate_category(category: str, subcategory: str) -> None:
     if not category_by_id(category):
         raise HTTPException(status_code=400, detail="Unknown category.")
@@ -85,6 +118,10 @@ def _validate_category(category: str, subcategory: str) -> None:
 
 def _json_product(product: dict[str, Any]) -> dict[str, Any]:
     return public_product(product)
+
+
+def _public_products(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_json_product(item) for item in products if product_is_active(item)]
 
 
 def _find_seller(store: Store, identity: Identity) -> dict[str, Any] | None:
@@ -161,6 +198,24 @@ def create_app() -> FastAPI:
     def health():
         return {"ok": True, "name": settings.app_name, "auth": settings.auth_mode}
 
+    @app.post("/contact")
+    def contact(body: ContactIn):
+        source = body.source.strip().lower() or "website"
+        if source not in ("sellercenter", "marketplace", "website"):
+            source = "website"
+        sent = send_contact_message(
+            name=body.name.strip(),
+            email=body.email.strip().lower(),
+            message=body.message.strip(),
+            source=source,
+        )
+        if not sent:
+            raise HTTPException(
+                status_code=502,
+                detail="Could not send your message. Please try again shortly.",
+            )
+        return {"ok": True}
+
     @app.get("/categories")
     def categories():
         return CATEGORIES
@@ -178,7 +233,7 @@ def create_app() -> FastAPI:
         seller = _store.get_seller_by_slug(slug)
         if not seller:
             raise HTTPException(status_code=404, detail="Seller not found.")
-        products = [_json_product(p) for p in _store.list_products(seller_id=seller["id"])]
+        products = _public_products(_store.list_products(seller_id=seller["id"]))
         return {"seller": public_seller(seller), "products": products}
 
     @app.get("/products")
@@ -189,7 +244,7 @@ def create_app() -> FastAPI:
         _store: Store = Depends(db),
     ):
         products = _store.list_products(category=category, city=city, seller_id=seller_id)
-        return [_json_product(p) for p in products]
+        return _public_products(products)
 
     @app.post("/auth/signup")
     def signup(body: SignupIn, _store: Store = Depends(db)):
@@ -313,7 +368,7 @@ def create_app() -> FastAPI:
         _store: Store = Depends(db),
     ):
         product = _store.get_product(product_id)
-        if not product:
+        if not product or not product_is_active(product):
             raise HTTPException(status_code=404, detail="Product not found.")
         seller = _store.get_seller(product["seller_id"])
         return {
@@ -324,7 +379,7 @@ def create_app() -> FastAPI:
     @app.post("/orders")
     def create_order(body: OrderIn, _store: Store = Depends(db)):
         product = _store.get_product(body.product_id)
-        if not product:
+        if not product or not product_is_active(product):
             raise HTTPException(status_code=404, detail="Product not found.")
         seller = _store.get_seller(product["seller_id"])
         if not seller:
@@ -333,11 +388,22 @@ def create_app() -> FastAPI:
         payment_method = body.payment_method.strip()
         if payment_method not in allowed:
             raise HTTPException(status_code=400, detail="Please choose an allowed payment method.")
-        order_id = new_id()
+        variants = product_variants(product)
+        variant_id = ""
+        variant_label = ""
         unit = int(product.get("price") or 0)
+        if variants:
+            chosen = next((item for item in variants if item["id"] == body.variant_id.strip()), None)
+            if not chosen:
+                raise HTTPException(status_code=400, detail="Please choose a product option.")
+            variant_id = chosen["id"]
+            variant_label = chosen["label"]
+            unit = int(chosen["price"])
+        order_id = new_id()
         quantity = body.quantity
         total = unit * quantity if unit > 0 else 0
         total_label = f"Rs {total:,}" if total > 0 else "Contact for price"
+        variation_type = str(product.get("variation_type") or "")
         order = {
             "id": order_id,
             "reference": f"PM-ORD-{order_id[:6].upper()}",
@@ -351,6 +417,10 @@ def create_app() -> FastAPI:
             "unit_price": unit,
             "total": total,
             "total_label": total_label,
+            "variant_id": variant_id,
+            "variant_label": variant_label,
+            "variation_type": variation_type,
+            "variation_type_label": VARIATION_TYPE_LABELS.get(variation_type, ""),
             "payment_method": payment_method,
             "payment_method_label": PAYMENT_METHOD_LABELS.get(payment_method, payment_method),
             "buyer_name": body.buyer_name.strip(),
@@ -367,6 +437,7 @@ def create_app() -> FastAPI:
                 "product_name": order["product_name"],
                 "quantity": order["quantity"],
                 "total_label": order["total_label"],
+                "variant_label": order["variant_label"],
                 "payment_method": order["payment_method"],
                 "payment_method_label": order["payment_method_label"],
             },
@@ -399,10 +470,11 @@ def create_app() -> FastAPI:
             "subcategory": body.subcategory.strip(),
             "name": body.name.strip(),
             "description": body.description.strip(),
-            "price": body.price,
             "lead_time": body.lead_time.strip(),
             **_product_image_fields(body),
             **_product_payment_fields(body),
+            **_product_variant_fields(body),
+            "status": "active",
             "code": _next_product_code(_store, seller),
             "created_at": now_iso(),
         }
@@ -427,15 +499,33 @@ def create_app() -> FastAPI:
                 "name": body.name.strip(),
                 "category": body.category,
                 "subcategory": body.subcategory.strip(),
-                "price": body.price,
                 "description": body.description.strip(),
                 "lead_time": body.lead_time.strip(),
                 **_product_image_fields(body),
                 **_product_payment_fields(body),
+                **_product_variant_fields(body),
                 "seller_name": seller["name"],
                 "city": seller["city"],
+                "status": product_status(product),
             }
         )
+        return _json_product(_store.put_product(product))
+
+    @app.patch("/products/{product_id}/status")
+    def update_product_status(
+        product_id: str,
+        body: ProductStatusIn,
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        product = _store.get_product(product_id)
+        if not product or product["seller_id"] != seller["id"]:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        status = body.status.strip().lower()
+        if status not in ("active", "disabled"):
+            raise HTTPException(status_code=400, detail="Status must be active or disabled.")
+        product["status"] = status
         return _json_product(_store.put_product(product))
 
     @app.delete("/products/{product_id}")

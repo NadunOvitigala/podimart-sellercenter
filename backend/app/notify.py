@@ -26,10 +26,15 @@ def order_message(order: dict) -> str:
         payment_note = (
             "\nBuyer selected bank transfer. Please contact the buyer and share the bank details.\n"
         )
+    variant_line = ""
+    if order.get("variant_label"):
+        kind = order.get("variation_type_label") or "Option"
+        variant_line = f"{kind}: {order['variant_label']}\n"
     return (
         f"Hey, there is a new order on podimart.lk.\n\n"
         f"Order: {order['reference']}\n"
         f"Product: {order['product_name']} ({order['product_code']})\n"
+        f"{variant_line}"
         f"Quantity: {order['quantity']}\n"
         f"Total: {total}\n"
         f"Payment: {payment}\n"
@@ -46,27 +51,42 @@ def _from_address() -> str:
     return (settings.smtp_from or "podimart.lk <no-reply@podimart.lk>").strip()
 
 
-def send_email_ses(to: str, subject: str, body: str) -> bool:
+def send_email_ses(
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    reply_to: str | None = None,
+) -> bool:
     """Send with Amazon SES API (uses AWS credentials + verified domain)."""
     try:
         import boto3
 
         client = boto3.client("ses", region_name=settings.aws_region)
-        client.send_email(
-            Source=_from_address(),
-            Destination={"ToAddresses": [to]},
-            Message={
+        params: dict = {
+            "Source": _from_address(),
+            "Destination": {"ToAddresses": [to]},
+            "Message": {
                 "Subject": {"Data": subject, "Charset": "UTF-8"},
                 "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
             },
-        )
+        }
+        if reply_to:
+            params["ReplyToAddresses"] = [reply_to]
+        client.send_email(**params)
         return True
     except Exception as exc:
         print("SES email notify failed:", exc)
         return False
 
 
-def send_email_smtp(to: str, subject: str, body: str) -> bool:
+def send_email_smtp(
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    reply_to: str | None = None,
+) -> bool:
     if not settings.smtp_host:
         print(f"[email skipped] SMTP_HOST not set\n{subject}\n{body}\n")
         return False
@@ -74,6 +94,8 @@ def send_email_smtp(to: str, subject: str, body: str) -> bool:
     message["From"] = _from_address()
     message["To"] = to
     message["Subject"] = subject
+    if reply_to:
+        message["Reply-To"] = reply_to
     message.set_content(body)
     try:
         if settings.smtp_port == 465:
@@ -93,13 +115,34 @@ def send_email_smtp(to: str, subject: str, body: str) -> bool:
         return False
 
 
-def send_email(to: str, subject: str, body: str) -> bool:
+def send_email(
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    reply_to: str | None = None,
+) -> bool:
     if not to:
         return False
     provider = (settings.email_provider or "ses").strip().lower()
     if provider == "ses":
-        return send_email_ses(to, subject, body)
-    return send_email_smtp(to, subject, body)
+        return send_email_ses(to, subject, body, reply_to=reply_to)
+    return send_email_smtp(to, subject, body, reply_to=reply_to)
+
+
+def send_contact_message(*, name: str, email: str, message: str, source: str) -> bool:
+    to = (settings.contact_to_email or "").strip()
+    if not to:
+        print("[contact skipped] CONTACT_TO_EMAIL not set")
+        return False
+    subject = f"podimart.lk contact — {source}"
+    body = (
+        f"New message from the {source} contact form.\n\n"
+        f"Name: {name}\n"
+        f"Email: {email}\n\n"
+        f"{message}\n"
+    )
+    return send_email(to, subject, body, reply_to=email)
 
 
 def send_whatsapp(to: str, body: str) -> bool:

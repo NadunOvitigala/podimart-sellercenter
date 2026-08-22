@@ -43,7 +43,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 480, paddingTop: 48 }}>
+    <div className="wrap auth-page">
       <h1>Log in to Seller Center</h1>
       <p className="lede">Sellers only. Buyers shop on the public Podimart site.</p>
       <form className="form" onSubmit={onSubmit}>

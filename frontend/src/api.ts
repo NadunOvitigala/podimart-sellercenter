@@ -85,6 +85,8 @@ export async function savePendingCover(): Promise<void> {
 export const api = {
   categories: () => request<Category[]>("/categories"),
   cities: () => request<string[]>("/cities"),
+  contact: (body: { name: string; email: string; message: string; source?: string }) =>
+    request<{ ok: boolean }>("/contact", { method: "POST", body: JSON.stringify(body) }),
   product: (id: string) =>
     request<{ product: Product; seller: Seller | null }>(`/products/${id}`),
   signup: (body: Record<string, string>) =>
@@ -102,10 +104,15 @@ export const api = {
     }),
   updateMe: (body: Record<string, string>) =>
     request<Seller>("/me", { method: "PUT", body: JSON.stringify(body) }),
-  createProduct: (body: Record<string, string | number | string[]>) =>
+  createProduct: (body: Record<string, unknown>) =>
     request<Product>("/products", { method: "POST", body: JSON.stringify(body) }),
-  updateProduct: (id: string, body: Record<string, string | number | string[]>) =>
+  updateProduct: (id: string, body: Record<string, unknown>) =>
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  setProductStatus: (id: string, status: "active" | "disabled") =>
+    request<Product>(`/products/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   deleteProduct: (id: string) => request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
   deleteShop: () => request<{ ok: boolean }>("/me", { method: "DELETE" }),
   upload: async (file: File) => {
@@ -117,6 +124,11 @@ export const api = {
 
 export function formatPrice(value: number): string {
   return `Rs ${value.toLocaleString("en-LK")}`;
+}
+
+export function displayPrice(value: number): string {
+  if (!value || value <= 0) return "Contact for price";
+  return formatPrice(value);
 }
 
 export function productCode(product: { id: string; code?: string }): string {

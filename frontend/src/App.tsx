@@ -2,18 +2,21 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AboutPage } from "./pages/AboutPage";
 import { AuthProvider } from "./auth";
 import { Layout } from "./components/Layout";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { ConfirmPage } from "./pages/ConfirmPage";
 import { ContactPage } from "./pages/ContactPage";
-import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
+import { ListingsPage } from "./pages/ListingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProductFormPage } from "./pages/ProductFormPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SignupPage } from "./pages/SignupPage";
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
@@ -22,7 +25,9 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/confirm" element={<ConfirmPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<Navigate to="/dashboard/listings" replace />} />
+            <Route path="/dashboard/listings" element={<ListingsPage />} />
+            <Route path="/dashboard/profile" element={<ProfilePage />} />
             <Route path="/dashboard/new" element={<ProductFormPage />} />
             <Route path="/dashboard/edit/:id" element={<ProductFormPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

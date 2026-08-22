@@ -12,6 +12,16 @@ const PAYMENT_OPTIONS = [
   { id: "bank_transfer", label: "Bank transfer" },
 ] as const;
 
+const VARIATION_TYPES = [
+  { id: "size", label: "Size" },
+  { id: "weight", label: "Weight" },
+  { id: "version", label: "Version" },
+  { id: "height", label: "Height" },
+  { id: "other", label: "Other" },
+] as const;
+
+type VariantDraft = { id: string; label: string; price: string };
+
 const empty = {
   name: "",
   category: "bakery",
@@ -21,6 +31,8 @@ const empty = {
   lead_time: "Order 2 days before",
   image_urls: [] as string[],
   payment_methods: ["cash_on_delivery", "bank_transfer"] as string[],
+  variation_type: "size",
+  variants: [] as VariantDraft[],
 };
 
 function listingPhotos(product: Product): string[] {
@@ -29,6 +41,10 @@ function listingPhotos(product: Product): string[] {
     return [product.image_url, ...urls];
   }
   return urls;
+}
+
+function newVariant(): VariantDraft {
+  return { id: "", label: "", price: "0" };
 }
 
 export function ProductFormPage() {
@@ -47,6 +63,8 @@ export function ProductFormPage() {
     return selected?.subcategories ?? [];
   }, [categories, form.category]);
 
+  const hasVariants = form.variants.length > 0;
+
   useEffect(() => {
     if (!ready) return;
     if (!token) navigate("/login");
@@ -58,7 +76,12 @@ export function ProductFormPage() {
 
   useEffect(() => {
     if (!id) return;
-    api.product(id).then(({ product }: { product: Product }) => {
+    api.me().then((data) => {
+      const product = data.products.find((item) => item.id === id);
+      if (!product) {
+        setError("Product not found.");
+        return;
+      }
       setForm({
         name: product.name,
         category: product.category,
@@ -67,12 +90,16 @@ export function ProductFormPage() {
         description: product.description,
         lead_time: product.lead_time,
         image_urls: listingPhotos(product),
-        payment_methods: product.payment_methods?.length
-          ? product.payment_methods
-          : [],
+        payment_methods: product.payment_methods?.length ? product.payment_methods : [],
+        variation_type: product.variation_type || "size",
+        variants: (product.variants ?? []).map((item) => ({
+          id: item.id,
+          label: item.label,
+          price: String(item.price),
+        })),
       });
       setListingCode(productCode(product));
-    });
+    }).catch((err: Error) => setError(err.message));
   }, [id]);
 
   useEffect(() => {
@@ -126,11 +153,43 @@ export function ProductFormPage() {
     });
   }
 
+  function updateVariant(index: number, patch: Partial<VariantDraft>) {
+    setForm((current) => ({
+      ...current,
+      variants: current.variants.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    }));
+  }
+
+  function addVariant() {
+    setForm((current) => ({
+      ...current,
+      variants: [...current.variants, newVariant()].slice(0, 20),
+    }));
+  }
+
+  function removeVariant(index: number) {
+    setForm((current) => ({
+      ...current,
+      variants: current.variants.filter((_, i) => i !== index),
+    }));
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     if (form.payment_methods.length === 0) {
       setError("Please choose at least one payment method.");
+      return;
+    }
+    const variants = form.variants
+      .map((item) => ({
+        id: item.id,
+        label: item.label.trim(),
+        price: Number(item.price) || 0,
+      }))
+      .filter((item) => item.label);
+    if (form.variants.length > 0 && variants.length === 0) {
+      setError("Add a label for each option, or remove empty options.");
       return;
     }
     const body = {
@@ -143,20 +202,22 @@ export function ProductFormPage() {
       image_url: form.image_urls[0] || "",
       image_urls: form.image_urls,
       payment_methods: form.payment_methods,
+      variation_type: form.variation_type,
+      variants,
     };
     try {
       if (id) await api.updateProduct(id, body);
       else await api.createProduct(body);
-      navigate("/dashboard");
+      navigate("/dashboard/listings");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save product.");
     }
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 640, paddingTop: 36 }}>
+    <div className="wrap form-page">
       <p>
-        <Link to="/dashboard">Back to shop</Link>
+        <Link to="/dashboard/listings">Back to listings</Link>
       </p>
       <h1>{id ? "Edit product" : "Add a product"}</h1>
       {listingCode ? (
@@ -203,15 +264,19 @@ export function ProductFormPage() {
             </select>
           </label>
         ) : null}
-        <label>
-          Price (Rs)
-          <input
-            type="number"
-            min={0}
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-          />
-        </label>
+        {!hasVariants ? (
+          <label>
+            Price (Rs)
+            <input
+              type="number"
+              min={0}
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+          </label>
+        ) : (
+          <p className="muted">Price comes from each option below.</p>
+        )}
         <label>
           Description
           <textarea
@@ -226,6 +291,62 @@ export function ProductFormPage() {
             onChange={(e) => setForm({ ...form, lead_time: e.target.value })}
           />
         </label>
+
+        <fieldset className="variant-field">
+          <legend>Options (size / weight / version)</legend>
+          <p className="muted variant-help">
+            Optional. Add options if this product has different prices (for example 1kg / 2kg).
+          </p>
+          {hasVariants ? (
+            <label>
+              Option type
+              <select
+                value={form.variation_type}
+                onChange={(e) => setForm({ ...form, variation_type: e.target.value })}
+              >
+                {VARIATION_TYPES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {form.variants.map((variant, index) => (
+            <div className="variant-row" key={`variant-${index}`}>
+              <input
+                placeholder="Label (e.g. 1 kg)"
+                value={variant.label}
+                onChange={(e) => updateVariant(index, { label: e.target.value })}
+                required={hasVariants}
+              />
+              <input
+                type="number"
+                min={0}
+                placeholder="Price"
+                value={variant.price}
+                onChange={(e) => updateVariant(index, { price: e.target.value })}
+                required={hasVariants}
+              />
+              <button
+                className="btn btn-outline"
+                type="button"
+                onClick={() => removeVariant(index)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            className="btn btn-outline"
+            type="button"
+            onClick={addVariant}
+            disabled={form.variants.length >= 20}
+          >
+            {hasVariants ? "Add another option" : "Add size / weight / version options"}
+          </button>
+        </fieldset>
+
         <fieldset className="check-field">
           <legend>Allowed payment methods</legend>
           {PAYMENT_OPTIONS.map((option) => (

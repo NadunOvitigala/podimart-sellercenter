@@ -22,7 +22,7 @@ export function ConfirmPage() {
 
   if (!cognitoEnabled) {
     return (
-      <div className="wrap" style={{ maxWidth: 480, paddingTop: 48 }}>
+      <div className="wrap auth-page">
         <h1>Email confirmation</h1>
         <p className="lede">Local mode does not need an email code. Log in instead.</p>
         <Link to="/login">Log in</Link>
@@ -65,7 +65,7 @@ export function ConfirmPage() {
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 480, paddingTop: 48 }}>
+    <div className="wrap auth-page">
       <h1>Check your email</h1>
       <p className="lede">
         Enter the code Cognito sent to <strong>{email || "your email"}</strong>, then your

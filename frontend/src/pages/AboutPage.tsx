@@ -3,13 +3,13 @@ import { PUBLIC_URL } from "../sites";
 
 export function AboutPage() {
   return (
-    <div className="wrap" style={{ maxWidth: 720, paddingTop: 40, paddingBottom: 48 }}>
+    <div className="wrap content-page">
       <h1>About us</h1>
       <p className="lede">
         Podimart helps home businesses in Sri Lanka open a shop, list cakes and crafts, and
         reach buyers — without building a website.
       </p>
-      <div className="panel form" style={{ marginTop: 24 }}>
+      <div className="panel form stack-panel">
         <h2>Seller Center</h2>
         <p>
           This is where makers run their shop. You can open a free shop, add photos and prices,

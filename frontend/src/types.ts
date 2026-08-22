@@ -26,6 +26,12 @@ export type Seller = {
   product_count?: number;
 };
 
+export type ProductVariant = {
+  id: string;
+  label: string;
+  price: number;
+};
+
 export type Product = {
   id: string;
   seller_id: string;
@@ -42,6 +48,10 @@ export type Product = {
   image_urls?: string[];
   code?: string;
   payment_methods?: string[];
+  variation_type?: string;
+  variation_type_label?: string;
+  variants?: ProductVariant[];
+  status?: "active" | "disabled";
   created_at: string;
 };
 

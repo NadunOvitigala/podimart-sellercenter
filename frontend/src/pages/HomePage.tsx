@@ -30,7 +30,7 @@ export function HomePage() {
                 <Link className="btn btn-light" to="/signup">
                   Open a free shop
                 </Link>
-                <Link className="btn btn-ghost-light" to="/login">
+                <Link className="btn btn-clay" to="/login">
                   Log in
                 </Link>
               </>

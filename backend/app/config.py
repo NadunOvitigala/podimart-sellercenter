@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "podimart.lk <no-reply@podimart.lk>"
+    contact_to_email: str = "nadunovitigala@gmail.com"
     whatsapp_token: str = ""
     whatsapp_phone_id: str = ""
     whatsapp_template: str = ""
