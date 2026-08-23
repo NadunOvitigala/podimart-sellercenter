@@ -129,8 +129,11 @@ def public_product(product: dict[str, Any]) -> dict[str, Any]:
         "description": product.get("description") or "",
         "price": price,
         "lead_time": product.get("lead_time") or "",
+        "delivery_charge": int(product.get("delivery_charge") or 0),
+        "delivery_note": str(product.get("delivery_note") or "").strip(),
         "image_url": images[0] if images else "",
         "image_urls": images,
+        "video_urls": [url.strip() for url in (product.get("video_urls") or []) if url.strip()][:2],
         "code": product_code(product),
         "payment_methods": product_payment_methods(product),
         "variation_type": variation_type,
@@ -146,8 +149,8 @@ class SignupIn(BaseModel):
     email: str = Field(min_length=5, max_length=120)
     password: str = Field(min_length=8, max_length=80)
     city: str = Field(min_length=2, max_length=40)
-    whatsapp: str = Field(default="", max_length=20)
-    phone: str = Field(default="", max_length=20)
+    whatsapp: str = Field(min_length=8, max_length=20)
+    phone: str = Field(min_length=8, max_length=20)
 
 
 class LoginIn(BaseModel):
@@ -158,8 +161,8 @@ class LoginIn(BaseModel):
 class BootstrapIn(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     city: str = Field(min_length=2, max_length=40)
-    whatsapp: str = Field(default="", max_length=20)
-    phone: str = Field(default="", max_length=20)
+    whatsapp: str = Field(min_length=8, max_length=20)
+    phone: str = Field(min_length=8, max_length=20)
 
 
 class ProfileIn(BaseModel):
@@ -187,8 +190,11 @@ class ProductIn(BaseModel):
     price: int = Field(ge=0, le=10_000_000)
     description: str = Field(default="", max_length=800)
     lead_time: str = Field(default="Order 2 days before", max_length=80)
+    delivery_charge: int = Field(default=0, ge=0, le=10_000_000)
+    delivery_note: str = Field(default="", max_length=160)
     image_url: str = Field(default="", max_length=500)
     image_urls: list[str] = Field(default_factory=list, max_length=8)
+    video_urls: list[str] = Field(default_factory=list, max_length=2)
     payment_methods: list[str] = Field(default_factory=list, max_length=2)
     variation_type: str = Field(default="other", max_length=40)
     variants: list[VariantIn] = Field(default_factory=list, max_length=20)
@@ -203,6 +209,10 @@ class ContactIn(BaseModel):
     email: str = Field(min_length=5, max_length=120)
     message: str = Field(min_length=5, max_length=2000)
     source: str = Field(default="sellercenter", max_length=40)
+
+
+class AdminGrantIn(BaseModel):
+    email: str = Field(min_length=5, max_length=120)
 
 
 class OrderIn(BaseModel):

@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 
+from app.admin_store import get_admin_store
 from app.config import settings
 
 bearer = HTTPBearer(auto_error=False)
@@ -112,3 +113,38 @@ def get_identity(
     if creds is None or creds.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Please log in.")
     return decode_identity(creds.credentials)
+
+
+def admin_emails() -> set[str]:
+    return get_admin_store().list_admin_emails()
+
+
+def is_admin(identity: Identity) -> bool:
+    if get_admin_store().is_admin(identity.email):
+        return True
+    env_allowed = {
+        email.strip().lower()
+        for email in settings.admin_emails.split(",")
+        if email.strip()
+    }
+    return identity.email.lower() in env_allowed
+
+
+def require_admin(identity: Identity = Depends(get_identity)) -> Identity:
+    if not is_admin(identity):
+        raise HTTPException(status_code=403, detail="Admin access only.")
+    return identity
+
+
+def create_admin_local_token(email: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": f"admin:{email}",
+        "email": email.lower(),
+        "token_use": "id",
+        "aud": "local",
+        "role": "admin",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=settings.jwt_expire_hours)).timestamp()),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")

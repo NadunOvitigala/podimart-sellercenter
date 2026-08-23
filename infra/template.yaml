@@ -19,6 +19,11 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: Leave false to deploy API + Cognito + data only. Set true later for S3/CloudFront website hosting.
+  DeployAdmin:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Deploy S3/CloudFront for the platform admin console.
   SellersTableName:
     Type: String
     Default: podimart-sellers
@@ -28,6 +33,9 @@ Parameters:
   OrdersTableName:
     Type: String
     Default: podimart-orders
+  AdminsTableName:
+    Type: String
+    Default: podimart-admins
   ExistingPhotoBucket:
     Type: String
     Default: ""
@@ -36,10 +44,15 @@ Parameters:
     Type: String
     Default: ""
     Description: Public buyer site origin (CloudFront URL or https://podimart.lk)
+  AdminEmails:
+    Type: String
+    Default: "nadunovitigala@gmail.com"
+    Description: Comma-separated admin emails allowed to use /admin routes
 
 Conditions:
   ShouldCreateSharedData: !Equals [!Ref CreateSharedData, "true"]
   ShouldDeployFrontend: !Equals [!Ref DeployFrontend, "true"]
+  ShouldDeployAdmin: !Equals [!Ref DeployAdmin, "true"]
 
 Resources:
   SellerUserPool:
@@ -187,6 +200,19 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  AdminsTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ShouldCreateSharedData
+    Properties:
+      TableName: !Ref AdminsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
   PhotoBucket:
     Type: AWS::S3::Bucket
     Condition: ShouldCreateSharedData
@@ -271,6 +297,74 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
 
+  AdminBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldDeployAdmin
+    Properties:
+      BucketName: !Sub podimart-admin-web-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  AdminOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Condition: ShouldDeployAdmin
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub admin-oac-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  AdminDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: ShouldDeployAdmin
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: admin
+            DomainName: !GetAtt AdminBucket.RegionalDomainName
+            OriginAccessControlId: !Ref AdminOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: admin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  AdminBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: ShouldDeployAdmin
+    Properties:
+      Bucket: !Ref AdminBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${AdminBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${AdminDistribution}
+
   PhotoOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Condition: ShouldCreateSharedData
@@ -339,8 +433,14 @@ Resources:
             - ShouldCreateSharedData
             - !Ref OrdersTable
             - !Ref OrdersTableName
+          TABLE_ADMINS: !If
+            - ShouldCreateSharedData
+            - !Ref AdminsTable
+            - !Ref AdminsTableName
           EMAIL_PROVIDER: ses
           SMTP_FROM: "podimart.lk <no-reply@podimart.lk>"
+          SELLERCENTER_URL: https://sellercenter.podimart.lk
+          PUBLIC_URL: https://podimart.lk
           CONTACT_TO_EMAIL: nadunovitigala@gmail.com
           S3_BUCKET: !If
             - ShouldCreateSharedData
@@ -352,10 +452,17 @@ Resources:
             - ""
           COGNITO_USER_POOL_ID: !Ref SellerUserPool
           COGNITO_CLIENT_ID: !Ref SellerUserPoolClient
+          ADMIN_EMAILS: !Ref AdminEmails
           CORS_ORIGINS: !If
-            - ShouldDeployFrontend
-            - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://sellercenter.podimart.lk,https://podimart.lk,https://${FrontendDistribution.DomainName},${BuyerSiteOrigin}"
-            - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,https://sellercenter.podimart.lk,https://podimart.lk,${BuyerSiteOrigin}"
+            - ShouldDeployAdmin
+            - !If
+              - ShouldDeployFrontend
+              - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,https://sellercenter.podimart.lk,https://admin.podimart.lk,https://podimart.lk,https://${FrontendDistribution.DomainName},https://${AdminDistribution.DomainName},${BuyerSiteOrigin}"
+              - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,https://sellercenter.podimart.lk,https://admin.podimart.lk,https://podimart.lk,https://${AdminDistribution.DomainName},${BuyerSiteOrigin}"
+            - !If
+              - ShouldDeployFrontend
+              - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,https://sellercenter.podimart.lk,https://admin.podimart.lk,https://podimart.lk,https://${FrontendDistribution.DomainName},${BuyerSiteOrigin}"
+              - !Sub "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,https://sellercenter.podimart.lk,https://admin.podimart.lk,https://podimart.lk,${BuyerSiteOrigin}"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !If
@@ -372,6 +479,11 @@ Resources:
               - ShouldCreateSharedData
               - !Ref OrdersTable
               - !Ref OrdersTableName
+        - DynamoDBCrudPolicy:
+            TableName: !If
+              - ShouldCreateSharedData
+              - !Ref AdminsTable
+              - !Ref AdminsTableName
         - S3CrudPolicy:
             BucketName: !If
               - ShouldCreateSharedData
@@ -381,6 +493,7 @@ Resources:
             - Effect: Allow
               Action:
                 - cognito-idp:AdminDeleteUser
+                - cognito-idp:ListUsers
               Resource: !GetAtt SellerUserPool.Arn
             - Effect: Allow
               Action:
@@ -413,6 +526,12 @@ Outputs:
   CloudFrontUrl:
     Condition: ShouldDeployFrontend
     Value: !Sub "https://${FrontendDistribution.DomainName}"
+  AdminBucketName:
+    Condition: ShouldDeployAdmin
+    Value: !Ref AdminBucket
+  AdminCloudFrontUrl:
+    Condition: ShouldDeployAdmin
+    Value: !Sub "https://${AdminDistribution.DomainName}"
   PhotoCdnUrl:
     Condition: ShouldCreateSharedData
     Value: !Sub "https://${PhotoDistribution.DomainName}"

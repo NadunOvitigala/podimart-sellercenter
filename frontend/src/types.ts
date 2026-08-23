@@ -44,8 +44,11 @@ export type Product = {
   description: string;
   price: number;
   lead_time: string;
+  delivery_charge?: number;
+  delivery_note?: string;
   image_url: string;
   image_urls?: string[];
+  video_urls?: string[];
   code?: string;
   payment_methods?: string[];
   variation_type?: string;

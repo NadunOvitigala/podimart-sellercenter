@@ -30,12 +30,16 @@ def order_message(order: dict) -> str:
     if order.get("variant_label"):
         kind = order.get("variation_type_label") or "Option"
         variant_line = f"{kind}: {order['variant_label']}\n"
+    delivery_note = order.get("delivery_note") or ""
+    delivery_suffix = f" ({delivery_note})" if delivery_note else ""
     return (
         f"Hey, there is a new order on podimart.lk.\n\n"
         f"Order: {order['reference']}\n"
         f"Product: {order['product_name']} ({order['product_code']})\n"
         f"{variant_line}"
         f"Quantity: {order['quantity']}\n"
+        f"Items: Rs {order.get('items_total', 0):,}\n"
+        f"Delivery: {order.get('delivery_label') or 'Free'}{delivery_suffix}\n"
         f"Total: {total}\n"
         f"Payment: {payment}\n"
         f"{payment_note}\n"
@@ -143,6 +147,34 @@ def send_contact_message(*, name: str, email: str, message: str, source: str) ->
         f"{message}\n"
     )
     return send_email(to, subject, body, reply_to=email)
+
+
+def shop_created_message(seller: dict) -> str:
+    name = str(seller.get("name") or "your shop").strip()
+    slug = str(seller.get("slug") or "").strip()
+    shop_url = f"{settings.public_url.rstrip('/')}/shop/{slug}" if slug else settings.public_url
+    dashboard_url = f"{settings.sellercenter_url.rstrip('/')}/dashboard/listings"
+    return (
+        f"Hi,\n\n"
+        f"Your shop \"{name}\" is now live on podimart.lk.\n\n"
+        f"Shop page: {shop_url}\n"
+        f"Seller Center: {dashboard_url}\n\n"
+        f"Next steps:\n"
+        f"- Add your first product\n"
+        f"- Share your shop link with customers\n"
+        f"- Buyers can contact you on WhatsApp\n\n"
+        f"Thanks for joining podimart.lk!\n\n"
+        f"— podimart.lk"
+    )
+
+
+def send_shop_created_email(seller: dict) -> bool:
+    to = (seller.get("email") or seller.get("email_public") or "").strip().lower()
+    if not to:
+        return False
+    name = str(seller.get("name") or "your shop").strip()
+    subject = f"Your shop is live on podimart.lk — {name}"
+    return send_email(to, subject, shop_created_message(seller))
 
 
 def send_whatsapp(to: str, body: str) -> bool:

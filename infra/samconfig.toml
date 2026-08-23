@@ -13,5 +13,5 @@ confirm_changeset = true
 region = "ap-south-1"
 resolve_s3 = true
 s3_prefix = "podimart-sellercenter"
-parameter_overrides = "CreateSharedData=true DeployFrontend=true BuyerSiteOrigin=https://d26jjlyflvm3tp.cloudfront.net"
+parameter_overrides = "CreateSharedData=true DeployFrontend=true DeployAdmin=true BuyerSiteOrigin=https://d26jjlyflvm3tp.cloudfront.net"
 image_repositories = []

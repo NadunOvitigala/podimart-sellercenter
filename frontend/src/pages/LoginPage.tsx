@@ -1,8 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, getShopDraft } from "../api";
 import { useAuth } from "../auth";
 import { cognitoEnabled, signInCognito } from "../cognito";
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return <span className="field-label">{children}</span>;
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -43,31 +47,46 @@ export function LoginPage() {
   }
 
   return (
-    <div className="wrap auth-page">
-      <h1>Log in to Seller Center</h1>
-      <p className="lede">Sellers only. Buyers shop on the public Podimart site.</p>
-      <form className="form" onSubmit={onSubmit}>
-        {error ? <div className="error">{error}</div> : null}
-        <label>
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
-        </label>
-        <label>
-          Password
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            required
-          />
-        </label>
-        <button className="btn btn-clay" type="submit">
-          Log in
-        </button>
-      </form>
-      <p>
-        New maker? <Link to="/signup">Open a free shop</Link>
-      </p>
+    <div className="auth-shell">
+      <div className="auth-card auth-card-narrow">
+        <header className="auth-card-head">
+          <p className="auth-kicker">Seller Center</p>
+          <h1>Log in</h1>
+          <p className="auth-lede">Sellers only. Buyers shop on the public Podimart site.</p>
+        </header>
+
+        <form className="form auth-form" onSubmit={onSubmit}>
+          {error ? <div className="error">{error}</div> : null}
+          <label>
+            <FieldLabel>Email</FieldLabel>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </label>
+          <label>
+            <FieldLabel>Password</FieldLabel>
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+          </label>
+          <button className="btn btn-clay btn-auth-submit" type="submit">
+            Log in
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          New maker? <Link to="/signup">Open a free shop</Link>
+        </p>
+      </div>
     </div>
   );
 }

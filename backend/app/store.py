@@ -48,6 +48,7 @@ class Store(Protocol):
     ) -> list[dict[str, Any]]: ...
     def put_product(self, product: dict[str, Any]) -> dict[str, Any]: ...
     def delete_product(self, product_id: str, seller_id: str) -> bool: ...
+    def delete_product_by_id(self, product_id: str) -> bool: ...
     def get_user_by_email(self, email: str) -> dict[str, Any] | None: ...
     def put_user(self, user: dict[str, Any]) -> dict[str, Any]: ...
     def put_order(self, order: dict[str, Any]) -> dict[str, Any]: ...
@@ -167,6 +168,13 @@ class LocalStore:
             for p in data["products"]
             if not (p["id"] == product_id and p["seller_id"] == seller_id)
         ]
+        self._write(data)
+        return len(data["products"]) < before
+
+    def delete_product_by_id(self, product_id: str) -> bool:
+        data = self._read()
+        before = len(data["products"])
+        data["products"] = [p for p in data["products"] if p["id"] != product_id]
         self._write(data)
         return len(data["products"]) < before
 
@@ -303,6 +311,13 @@ class DynamoStore:
     def delete_product(self, product_id: str, seller_id: str) -> bool:
         existing = self.get_product(product_id)
         if not existing or existing.get("seller_id") != seller_id:
+            return False
+        self.products.delete_item(Key={"id": product_id})
+        return True
+
+    def delete_product_by_id(self, product_id: str) -> bool:
+        existing = self.get_product(product_id)
+        if not existing:
             return False
         self.products.delete_item(Key={"id": product_id})
         return True
