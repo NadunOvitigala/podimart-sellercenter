@@ -99,6 +99,13 @@ export function Layout() {
                     {shopOpen ? (
                       <div className="nav-dropdown-menu" role="menu">
                         <NavLink
+                          to="/dashboard/profile"
+                          role="menuitem"
+                          onClick={() => setShopOpen(false)}
+                        >
+                          Profile settings
+                        </NavLink>
+                        <NavLink
                           to="/dashboard/listings"
                           role="menuitem"
                           onClick={() => setShopOpen(false)}
@@ -106,11 +113,11 @@ export function Layout() {
                           Listings
                         </NavLink>
                         <NavLink
-                          to="/dashboard/profile"
+                          to="/dashboard/new"
                           role="menuitem"
                           onClick={() => setShopOpen(false)}
                         >
-                          Profile settings
+                          Add product
                         </NavLink>
                       </div>
                     ) : null}
@@ -139,6 +146,16 @@ export function Layout() {
               )}
             </div>
           </nav>
+          <button
+            type="button"
+            className={menuOpen ? "nav-toggle is-open" : "nav-toggle"}
+            aria-expanded={menuOpen}
+            aria-controls="seller-more"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span className="nav-toggle-bars" aria-hidden="true" />
+          </button>
         </div>
       </header>
 
@@ -159,7 +176,7 @@ export function Layout() {
         aria-label="More menu"
       >
         <div className="more-sheet-head">
-          <h2>More</h2>
+          <h2>Menu</h2>
           <button type="button" className="more-sheet-close" onClick={closeMenu}>
             Close
           </button>
@@ -168,17 +185,41 @@ export function Layout() {
           {loggedIn ? (
             <>
               <p className="more-sheet-section-label">My shop</p>
-              <NavLink to="/dashboard/listings" onClick={closeMenu}>
-                My listings
-              </NavLink>
-              <NavLink to="/dashboard/new" onClick={closeMenu}>
-                Add a product
+              <NavLink to="/" end onClick={closeMenu}>
+                Home
               </NavLink>
               <NavLink to="/dashboard/profile" onClick={closeMenu}>
-                Profile settings
+                Profile
+              </NavLink>
+              <NavLink
+                className="more-sheet-sublink"
+                to="/dashboard/listings"
+                onClick={closeMenu}
+              >
+                Listings
+              </NavLink>
+              <NavLink
+                className="more-sheet-sublink"
+                to="/dashboard/new"
+                onClick={closeMenu}
+              >
+                Add product
               </NavLink>
             </>
-          ) : null}
+          ) : (
+            <>
+              <p className="more-sheet-section-label">Get started</p>
+              <NavLink to="/" end onClick={closeMenu}>
+                Home
+              </NavLink>
+              <NavLink to="/login" onClick={closeMenu}>
+                Log in
+              </NavLink>
+              <NavLink to="/signup" onClick={closeMenu}>
+                Sign up
+              </NavLink>
+            </>
+          )}
           <p className="more-sheet-section-label">Marketplace</p>
           <a href={PUBLIC_URL} onClick={closeMenu}>
             Browse podimart.lk
@@ -208,135 +249,6 @@ export function Layout() {
       <main className="site-main">
         <Outlet />
       </main>
-
-      {loggedIn ? (
-        <nav className="mobile-tabbar" aria-label="Seller tools">
-          <NavLink
-            to="/dashboard/listings"
-            className={({ isActive }) => (isActive ? "tabbar-item is-active" : "tabbar-item")}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M4 7h16M4 12h16M4 17h10"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>Listings</span>
-          </NavLink>
-          <NavLink
-            to="/dashboard/new"
-            className={({ isActive }) =>
-              isActive ? "tabbar-item is-active tabbar-primary" : "tabbar-item tabbar-primary"
-            }
-          >
-            <span className="tabbar-fab" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span>Add</span>
-          </NavLink>
-          <NavLink
-            to="/dashboard/profile"
-            className={({ isActive }) => (isActive ? "tabbar-item is-active" : "tabbar-item")}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
-              <path
-                d="M5 19c1.8-3.2 4.2-4.8 7-4.8s5.2 1.6 7 4.8"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>Profile</span>
-          </NavLink>
-          <button
-            type="button"
-            className={menuOpen ? "tabbar-item is-active" : "tabbar-item"}
-            aria-expanded={menuOpen}
-            aria-controls="seller-more"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 7h14M5 12h14M5 17h14"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>More</span>
-          </button>
-        </nav>
-      ) : (
-        <nav className="mobile-tabbar" aria-label="Get started">
-          <a className="tabbar-item" href={PUBLIC_URL}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>Shop</span>
-          </a>
-          <NavLink
-            to="/login"
-            className={({ isActive }) => (isActive ? "tabbar-item is-active" : "tabbar-item")}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-              <path
-                d="M15 12H3m0 0l3-3m-3 3l3 3"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>Log in</span>
-          </NavLink>
-          <NavLink
-            to="/signup"
-            className={({ isActive }) =>
-              isActive ? "tabbar-item is-active tabbar-primary" : "tabbar-item tabbar-primary"
-            }
-          >
-            <span className="tabbar-fab" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span>Sign up</span>
-          </NavLink>
-          <button
-            type="button"
-            className={menuOpen ? "tabbar-item is-active" : "tabbar-item"}
-            aria-expanded={menuOpen}
-            aria-controls="seller-more"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 7h14M5 12h14M5 17h14"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>More</span>
-          </button>
-        </nav>
-      )}
 
       <footer className="site-footer">
         <div className="wrap footer-grid">
