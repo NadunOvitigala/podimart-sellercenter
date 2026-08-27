@@ -171,11 +171,42 @@ def shop_created_message(seller: dict) -> str:
 
 def send_shop_created_email(seller: dict) -> bool:
     to = (seller.get("email") or seller.get("email_public") or "").strip().lower()
-    if not to:
-        return False
     name = str(seller.get("name") or "your shop").strip()
-    subject = f"Your shop is live on podimart.lk — {name}"
-    return send_email(to, subject, shop_created_message(seller))
+    seller_ok = False
+    if to:
+        subject = f"Your shop is live on podimart.lk — {name}"
+        seller_ok = send_email(to, subject, shop_created_message(seller))
+    send_admin_shop_created_email(seller)
+    return seller_ok
+
+
+def admin_shop_created_message(seller: dict) -> str:
+    name = str(seller.get("name") or "New shop").strip()
+    slug = str(seller.get("slug") or "").strip()
+    email = (seller.get("email") or seller.get("email_public") or "—").strip()
+    city = str(seller.get("city") or "—").strip()
+    phone = str(seller.get("whatsapp") or seller.get("phone") or "—").strip()
+    shop_url = f"{settings.public_url.rstrip('/')}/shop/{slug}" if slug else settings.public_url
+    return (
+        f"A new shop opened on podimart.lk.\n\n"
+        f"Shop: {name}\n"
+        f"Slug: {slug or '—'}\n"
+        f"Province: {city}\n"
+        f"Email: {email}\n"
+        f"WhatsApp / phone: {phone}\n"
+        f"Shop page: {shop_url}\n"
+        f"Seller Center: {settings.sellercenter_url.rstrip('/')}/dashboard/listings\n"
+    )
+
+
+def send_admin_shop_created_email(seller: dict) -> bool:
+    to = (settings.contact_to_email or "").strip()
+    if not to:
+        print("[admin shop notify skipped] CONTACT_TO_EMAIL not set")
+        return False
+    name = str(seller.get("name") or "New shop").strip()
+    subject = f"New shop opened — {name}"
+    return send_email(to, subject, admin_shop_created_message(seller))
 
 
 def send_whatsapp(to: str, body: str) -> bool:
