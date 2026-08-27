@@ -58,7 +58,7 @@ export function Layout() {
       <div className="topbar">
         <div className="wrap topbar-row">
           <span>Seller tools for home businesses on podimart.lk</span>
-          <span className="topbar-hide">Free shop · Listings · WhatsApp orders</span>
+          <span className="topbar-hide">Free shop · Listings · Orders</span>
         </div>
       </div>
       <header className="site-header">
@@ -99,13 +99,6 @@ export function Layout() {
                     {shopOpen ? (
                       <div className="nav-dropdown-menu" role="menu">
                         <NavLink
-                          to="/dashboard/profile"
-                          role="menuitem"
-                          onClick={() => setShopOpen(false)}
-                        >
-                          Profile settings
-                        </NavLink>
-                        <NavLink
                           to="/dashboard/listings"
                           role="menuitem"
                           onClick={() => setShopOpen(false)}
@@ -113,11 +106,18 @@ export function Layout() {
                           Listings
                         </NavLink>
                         <NavLink
-                          to="/dashboard/new"
+                          to="/dashboard/orders"
                           role="menuitem"
                           onClick={() => setShopOpen(false)}
                         >
-                          Add product
+                          Orders
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/profile"
+                          role="menuitem"
+                          onClick={() => setShopOpen(false)}
+                        >
+                          Profile settings
                         </NavLink>
                       </div>
                     ) : null}
@@ -188,22 +188,14 @@ export function Layout() {
               <NavLink to="/" end onClick={closeMenu}>
                 Home
               </NavLink>
-              <NavLink to="/dashboard/profile" onClick={closeMenu}>
-                Profile
-              </NavLink>
-              <NavLink
-                className="more-sheet-sublink"
-                to="/dashboard/listings"
-                onClick={closeMenu}
-              >
+              <NavLink to="/dashboard/listings" onClick={closeMenu}>
                 Listings
               </NavLink>
-              <NavLink
-                className="more-sheet-sublink"
-                to="/dashboard/new"
-                onClick={closeMenu}
-              >
-                Add product
+              <NavLink to="/dashboard/orders" onClick={closeMenu}>
+                Orders
+              </NavLink>
+              <NavLink to="/dashboard/profile" onClick={closeMenu}>
+                Profile settings
               </NavLink>
             </>
           ) : (
@@ -268,6 +260,7 @@ export function Layout() {
           <div>
             <h3>Seller tools</h3>
             <NavLink to="/dashboard/listings">Listings</NavLink>
+            <NavLink to="/dashboard/orders">Orders</NavLink>
             <NavLink to="/dashboard/profile">Profile settings</NavLink>
             <NavLink to="/dashboard/new">Add a product</NavLink>
             <NavLink to="/signup">Open a free shop</NavLink>

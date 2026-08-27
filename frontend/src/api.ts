@@ -1,4 +1,4 @@
-import type { AuthResponse, Category, Product, Seller, ShopDraft } from "./types";
+import type { AuthResponse, Category, Order, Product, Seller, ShopDraft } from "./types";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 const TOKEN_KEY = "podimart_seller_token";
@@ -97,6 +97,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<{ seller: Seller; products: Product[] }>("/me"),
+  myOrders: () => request<Order[]>("/me/orders"),
+  confirmOrder: (orderId: string) =>
+    request<{ order: Order; buyer_notified: boolean; already_confirmed: boolean }>(
+      `/me/orders/${encodeURIComponent(orderId)}/confirm`,
+      { method: "POST" },
+    ),
   bootstrap: (body: ShopDraft) =>
     request<{ seller: Seller; products: Product[] }>("/me/bootstrap", {
       method: "POST",

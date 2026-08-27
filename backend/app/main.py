@@ -20,7 +20,7 @@ from app.admin_store import get_admin_store
 from app.catalog import CATEGORIES, CITIES, category_by_id, subcategory_ids
 from app.cognito_users import list_cognito_users
 from app.config import settings
-from app.notify import notify_seller, send_contact_message, send_shop_created_email
+from app.notify import notify_seller, send_contact_message, send_order_confirmed_email, send_shop_created_email
 from app.schemas import (
     AdminGrantIn,
     BootstrapIn,
@@ -568,6 +568,31 @@ def create_app() -> FastAPI:
         seller = _require_seller(_store, identity)
         return _store.list_orders(seller["id"])
 
+    @app.post("/me/orders/{order_id}/confirm")
+    def confirm_order(
+        order_id: str,
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        order = _store.get_order(order_id)
+        if not order or order.get("seller_id") != seller["id"]:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        status = str(order.get("status") or "pending").lower()
+        if status == "confirmed":
+            return {"order": order, "buyer_notified": False, "already_confirmed": True}
+        if status not in ("pending", ""):
+            raise HTTPException(status_code=400, detail="Only pending orders can be confirmed.")
+        order["status"] = "confirmed"
+        order["confirmed_at"] = now_iso()
+        saved = _store.update_order(order)
+        buyer_notified = send_order_confirmed_email(saved, seller)
+        return {
+            "order": saved,
+            "buyer_notified": buyer_notified,
+            "already_confirmed": False,
+        }
+
     @app.post("/products")
     def create_product(
         body: ProductIn,
@@ -801,6 +826,50 @@ def create_app() -> FastAPI:
         if not removed:
             raise HTTPException(status_code=404, detail="Admin not found.")
         return {"ok": True}
+
+    @app.get("/admin/orders")
+    def admin_list_orders(
+        _store: Store = Depends(db),
+        _: Identity = Depends(require_admin),
+    ):
+        return _store.list_all_orders()
+
+    @app.get("/admin/stats")
+    def admin_stats(
+        _store: Store = Depends(db),
+        _: Identity = Depends(require_admin),
+    ):
+        from datetime import datetime, timezone
+
+        orders = _store.list_all_orders()
+        sellers = _store.list_sellers()
+        products = _store.list_products()
+
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+        month_prefix = now.strftime("%Y-%m")
+
+        orders_today = [o for o in orders if (o.get("created_at") or "").startswith(today)]
+        orders_month = [o for o in orders if (o.get("created_at") or "").startswith(month_prefix)]
+        shops_month = [s for s in sellers if (s.get("created_at") or "").startswith(month_prefix)]
+        products_month = [p for p in products if (p.get("created_at") or "").startswith(month_prefix)]
+
+        revenue_today = sum(int(o.get("total") or 0) for o in orders_today)
+        revenue_month = sum(int(o.get("total") or 0) for o in orders_month)
+        revenue_total = sum(int(o.get("total") or 0) for o in orders)
+
+        return {
+            "orders_today": len(orders_today),
+            "orders_this_month": len(orders_month),
+            "orders_total": len(orders),
+            "revenue_today": revenue_today,
+            "revenue_this_month": revenue_month,
+            "revenue_total": revenue_total,
+            "shops_this_month": len(shops_month),
+            "shops_total": len(sellers),
+            "products_this_month": len(products_month),
+            "products_total": len(products),
+        }
 
     @app.delete("/admin/users/{email}")
     def admin_delete_user(

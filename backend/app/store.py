@@ -52,7 +52,10 @@ class Store(Protocol):
     def get_user_by_email(self, email: str) -> dict[str, Any] | None: ...
     def put_user(self, user: dict[str, Any]) -> dict[str, Any]: ...
     def put_order(self, order: dict[str, Any]) -> dict[str, Any]: ...
+    def get_order(self, order_id: str) -> dict[str, Any] | None: ...
+    def update_order(self, order: dict[str, Any]) -> dict[str, Any]: ...
     def list_orders(self, seller_id: str) -> list[dict[str, Any]]: ...
+    def list_all_orders(self) -> list[dict[str, Any]]: ...
 
 
 class LocalStore:
@@ -198,9 +201,27 @@ class LocalStore:
         self._write(data)
         return order
 
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
+        return next((item for item in self._read()["orders"] if item.get("id") == order_id), None)
+
+    def update_order(self, order: dict[str, Any]) -> dict[str, Any]:
+        data = self._read()
+        order_id = order.get("id")
+        for index, item in enumerate(data["orders"]):
+            if item.get("id") == order_id:
+                data["orders"][index] = order
+                self._write(data)
+                return order
+        data["orders"].append(order)
+        self._write(data)
+        return order
+
     def list_orders(self, seller_id: str) -> list[dict[str, Any]]:
         orders = [item for item in self._read()["orders"] if item.get("seller_id") == seller_id]
         return sorted(orders, key=lambda item: item.get("created_at", ""), reverse=True)
+
+    def list_all_orders(self) -> list[dict[str, Any]]:
+        return sorted(self._read()["orders"], key=lambda item: item.get("created_at", ""), reverse=True)
 
 
 class DynamoStore:
@@ -333,8 +354,18 @@ class DynamoStore:
         item["quantity"] = int(item.get("quantity") or 0)
         item["unit_price"] = int(item.get("unit_price") or 0)
         item["total"] = int(item.get("total") or 0)
+        if "items_total" in item:
+            item["items_total"] = int(item.get("items_total") or 0)
+        if "delivery_charge" in item:
+            item["delivery_charge"] = int(item.get("delivery_charge") or 0)
         self.orders.put_item(Item=item)
         return order
+
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
+        return self.orders.get_item(Key={"id": order_id}).get("Item")
+
+    def update_order(self, order: dict[str, Any]) -> dict[str, Any]:
+        return self.put_order(order)
 
     def list_orders(self, seller_id: str) -> list[dict[str, Any]]:
         try:
@@ -347,6 +378,10 @@ class DynamoStore:
             scanned = self.orders.scan().get("Items") or []
             orders = [item for item in scanned if item.get("seller_id") == seller_id]
         return sorted(orders, key=lambda item: item.get("created_at", ""), reverse=True)
+
+    def list_all_orders(self) -> list[dict[str, Any]]:
+        items = self.orders.scan().get("Items") or []
+        return sorted(items, key=lambda item: item.get("created_at", ""), reverse=True)
 
 
 def get_store() -> Store:

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "Podimart Seller Center"
     auth_mode: str = "local"  # local | cognito
     jwt_secret: str = "podimart-sellercenter-dev-change-me"
-    jwt_expire_hours: int = 24 * 14
+    jwt_expire_hours: int = 6
     storage: str = "local"  # local | dynamodb
     aws_region: str = "ap-south-1"
     table_sellers: str = "podimart-sellers"

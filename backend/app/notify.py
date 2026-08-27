@@ -47,7 +47,8 @@ def order_message(order: dict) -> str:
         f"Phone / WhatsApp: {order['buyer_phone']}\n"
         f"Email: {order.get('buyer_email') or '—'}\n"
         f"Note: {note}\n\n"
-        f"Please confirm this order with the buyer."
+        f"Please confirm this order with the buyer, then mark it Confirmed in Seller Center → Orders.\n"
+        f"When you confirm, the buyer will get an email (if they shared one)."
     )
 
 
@@ -234,3 +235,33 @@ def notify_seller(order: dict, seller: dict) -> dict[str, bool]:
         "email": send_email(email_to, subject, body),
         "whatsapp": send_whatsapp(whatsapp_to, body),
     }
+
+
+def order_confirmed_buyer_message(order: dict, seller: dict) -> str:
+    total = order.get("total_label") or "Contact for price"
+    shop = seller.get("name") or order.get("seller_name") or "the seller"
+    phone = seller.get("whatsapp") or seller.get("phone") or "—"
+    variant_line = ""
+    if order.get("variant_label"):
+        kind = order.get("variation_type_label") or "Option"
+        variant_line = f"{kind}: {order['variant_label']}\n"
+    return (
+        f"Hi {order.get('buyer_name') or 'there'},\n\n"
+        f"Good news — your order on podimart.lk has been confirmed by {shop}.\n\n"
+        f"Order: {order.get('reference')}\n"
+        f"Product: {order.get('product_name')} ({order.get('product_code') or '—'})\n"
+        f"{variant_line}"
+        f"Quantity: {order.get('quantity')}\n"
+        f"Total: {total}\n\n"
+        f"Shop contact: {phone}\n\n"
+        f"Please keep this reference if you need to follow up with the seller.\n\n"
+        f"— podimart.lk"
+    )
+
+
+def send_order_confirmed_email(order: dict, seller: dict) -> bool:
+    to = (order.get("buyer_email") or "").strip()
+    if not to:
+        return False
+    subject = f"Order confirmed — {order.get('reference')} · podimart.lk"
+    return send_email(to, subject, order_confirmed_buyer_message(order, seller))

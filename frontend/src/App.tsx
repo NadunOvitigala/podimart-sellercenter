@@ -8,6 +8,7 @@ import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingsPage } from "./pages/ListingsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { OrdersPage } from "./pages/OrdersPage";
 import { ProductFormPage } from "./pages/ProductFormPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SignupPage } from "./pages/SignupPage";
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/confirm" element={<ConfirmPage />} />
             <Route path="/dashboard" element={<Navigate to="/dashboard/listings" replace />} />
             <Route path="/dashboard/listings" element={<ListingsPage />} />
+            <Route path="/dashboard/orders" element={<OrdersPage />} />
             <Route path="/dashboard/profile" element={<ProfilePage />} />
             <Route path="/dashboard/new" element={<ProductFormPage />} />
             <Route path="/dashboard/edit/:id" element={<ProductFormPage />} />
