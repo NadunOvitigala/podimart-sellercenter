@@ -78,6 +78,41 @@ def product_status(product: dict[str, Any]) -> str:
     return value if value in PRODUCT_STATUS_IDS else "active"
 
 
+def product_reviews(product: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = product.get("reviews") or []
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            rating = int(item.get("rating") or 0)
+        except (TypeError, ValueError):
+            continue
+        if rating < 1 or rating > 5:
+            continue
+        out.append(
+            {
+                "id": str(item.get("id") or ""),
+                "rating": rating,
+                "comment": str(item.get("comment") or "").strip()[:500],
+                "author_name": str(item.get("author_name") or "").strip()[:80],
+                "order_reference": str(item.get("order_reference") or "").strip()[:40],
+                "created_at": str(item.get("created_at") or ""),
+            }
+        )
+    return sorted(out, key=lambda row: row.get("created_at") or "", reverse=True)[:50]
+
+
+def product_rating_avg(product: dict[str, Any]) -> float:
+    reviews = product_reviews(product)
+    if not reviews:
+        return 0.0
+    total = sum(int(item["rating"]) for item in reviews)
+    return round(total / len(reviews), 1)
+
+
 def product_is_active(product: dict[str, Any]) -> bool:
     return product_status(product) == "active"
 
@@ -131,6 +166,11 @@ def public_product(product: dict[str, Any]) -> dict[str, Any]:
         "lead_time": product.get("lead_time") or "",
         "delivery_charge": int(product.get("delivery_charge") or 0),
         "delivery_note": str(product.get("delivery_note") or "").strip(),
+        "offers_pickup": bool(product["offers_pickup"]) if "offers_pickup" in product else True,
+        "offers_delivery": bool(product["offers_delivery"]) if "offers_delivery" in product else True,
+        "reviews": product_reviews(product),
+        "rating_avg": product_rating_avg(product),
+        "rating_count": len(product_reviews(product)),
         "image_url": images[0] if images else "",
         "image_urls": images,
         "video_urls": [url.strip() for url in (product.get("video_urls") or []) if url.strip()][:2],
@@ -192,6 +232,8 @@ class ProductIn(BaseModel):
     lead_time: str = Field(default="Order 2 days before", max_length=80)
     delivery_charge: int = Field(default=0, ge=0, le=10_000_000)
     delivery_note: str = Field(default="", max_length=160)
+    offers_pickup: bool = True
+    offers_delivery: bool = True
     image_url: str = Field(default="", max_length=500)
     image_urls: list[str] = Field(default_factory=list, max_length=8)
     video_urls: list[str] = Field(default_factory=list, max_length=2)
@@ -222,5 +264,25 @@ class OrderIn(BaseModel):
     variant_id: str = Field(default="", max_length=40)
     buyer_name: str = Field(min_length=2, max_length=80)
     buyer_phone: str = Field(min_length=8, max_length=20)
-    buyer_email: str = Field(default="", max_length=120)
+    buyer_email: str = Field(min_length=5, max_length=120)
     note: str = Field(default="", max_length=400)
+
+
+class OrderNoteIn(BaseModel):
+    message: str = Field(min_length=2, max_length=400)
+    notify_buyer: bool = False
+
+
+class ReviewIn(BaseModel):
+    product_id: str = Field(min_length=4, max_length=40)
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=500)
+    author_name: str = Field(min_length=2, max_length=80)
+    order_reference: str = Field(default="", max_length=40)
+
+
+class ReportIn(BaseModel):
+    product_id: str = Field(min_length=4, max_length=40)
+    reason: str = Field(min_length=5, max_length=500)
+    reporter_name: str = Field(default="", max_length=80)
+    reporter_email: str = Field(default="", max_length=120)

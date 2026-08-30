@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, savePendingCover, setPendingCover, setShopDraft } from "../api";
 import { useAuth } from "../auth";
 import { FilePicker } from "../components/FilePicker";
-import { cognitoEnabled, signUpCognito } from "../cognito";
+import { cognitoEnabled, signInCognito, signUpCognito } from "../cognito";
 
 function FieldLabel({ children, required }: { children: ReactNode; required?: boolean }) {
   return (
@@ -79,7 +79,17 @@ export function SignupPage() {
           phone: form.phone,
         });
         await signUpCognito(form.email, form.password, form.name);
-        navigate(`/confirm?email=${encodeURIComponent(form.email)}`);
+        const token = await signInCognito(form.email, form.password);
+        login(token);
+        await api.bootstrap({
+          name: form.name,
+          city: form.city,
+          whatsapp: form.whatsapp,
+          phone: form.phone,
+        });
+        await savePendingCover();
+        setShopDraft(null);
+        navigate("/dashboard");
         return;
       }
       const data = await api.signup({

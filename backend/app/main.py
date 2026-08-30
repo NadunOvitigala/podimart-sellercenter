@@ -18,25 +18,37 @@ from app.auth import (
 )
 from app.admin_store import get_admin_store
 from app.catalog import CATEGORIES, CITIES, category_by_id, subcategory_ids
-from app.cognito_users import list_cognito_users
+from app.cognito_users import confirm_cognito_user, confirm_unconfirmed_cognito_users, list_cognito_users
 from app.config import settings
-from app.notify import notify_seller, send_contact_message, send_order_confirmed_email, send_shop_created_email
+from app.notify import (
+    notify_seller,
+    send_contact_message,
+    send_order_completed_email,
+    send_order_confirmed_email,
+    send_order_note_email,
+    send_report_listing_email,
+    send_shop_created_email,
+)
 from app.schemas import (
     AdminGrantIn,
     BootstrapIn,
     ContactIn,
     LoginIn,
     OrderIn,
+    OrderNoteIn,
     PAYMENT_METHOD_LABELS,
     ProductIn,
     ProductStatusIn,
     ProfileIn,
+    ReportIn,
+    ReviewIn,
     SignupIn,
     VARIATION_TYPE_IDS,
     VARIATION_TYPE_LABELS,
     product_code,
     product_is_active,
     product_payment_methods,
+    product_reviews,
     product_status,
     product_variants,
     public_product,
@@ -95,6 +107,8 @@ def _product_delivery_fields(body: ProductIn) -> dict[str, Any]:
     return {
         "delivery_charge": int(body.delivery_charge or 0),
         "delivery_note": body.delivery_note.strip()[:160],
+        "offers_pickup": bool(body.offers_pickup),
+        "offers_delivery": bool(body.offers_delivery),
     }
 
 
@@ -488,6 +502,9 @@ def create_app() -> FastAPI:
         seller = _store.get_seller(product["seller_id"])
         if not seller:
             raise HTTPException(status_code=404, detail="Seller not found.")
+        buyer_email = body.buyer_email.strip().lower()
+        if "@" not in buyer_email:
+            raise HTTPException(status_code=400, detail="Please enter a valid email so we can send updates.")
         allowed = product_payment_methods(product) or list(PAYMENT_METHOD_LABELS.keys())
         payment_method = body.payment_method.strip()
         if payment_method not in allowed:
@@ -541,8 +558,9 @@ def create_app() -> FastAPI:
             "payment_method_label": PAYMENT_METHOD_LABELS.get(payment_method, payment_method),
             "buyer_name": body.buyer_name.strip(),
             "buyer_phone": body.buyer_phone.strip(),
-            "buyer_email": body.buyer_email.strip(),
+            "buyer_email": buyer_email,
             "note": body.note.strip(),
+            "timeline": [],
             "created_at": now_iso(),
         }
         _store.put_order(order)
@@ -585,6 +603,17 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Only pending orders can be confirmed.")
         order["status"] = "confirmed"
         order["confirmed_at"] = now_iso()
+        timeline = list(order.get("timeline") or [])
+        timeline.append(
+            {
+                "id": new_id(),
+                "message": "Order confirmed by seller",
+                "created_at": order["confirmed_at"],
+                "author": "seller",
+                "buyer_notified": True,
+            }
+        )
+        order["timeline"] = timeline
         saved = _store.update_order(order)
         buyer_notified = send_order_confirmed_email(saved, seller)
         return {
@@ -592,6 +621,109 @@ def create_app() -> FastAPI:
             "buyer_notified": buyer_notified,
             "already_confirmed": False,
         }
+
+    @app.post("/me/orders/{order_id}/complete")
+    def complete_order(
+        order_id: str,
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        order = _store.get_order(order_id)
+        if not order or order.get("seller_id") != seller["id"]:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        status = str(order.get("status") or "pending").lower()
+        if status == "completed":
+            return {"order": order, "buyer_notified": False, "already_completed": True}
+        if status != "confirmed":
+            raise HTTPException(status_code=400, detail="Confirm the order before marking it completed.")
+        order["status"] = "completed"
+        order["completed_at"] = now_iso()
+        timeline = list(order.get("timeline") or [])
+        timeline.append(
+            {
+                "id": new_id(),
+                "message": "Order marked as completed",
+                "created_at": order["completed_at"],
+                "author": "seller",
+                "buyer_notified": True,
+            }
+        )
+        order["timeline"] = timeline
+        saved = _store.update_order(order)
+        buyer_notified = send_order_completed_email(saved, seller)
+        return {
+            "order": saved,
+            "buyer_notified": buyer_notified,
+            "already_completed": False,
+        }
+
+    @app.post("/me/orders/{order_id}/notes")
+    def add_order_note(
+        order_id: str,
+        body: OrderNoteIn,
+        identity: Identity = Depends(get_identity),
+        _store: Store = Depends(db),
+    ):
+        seller = _require_seller(_store, identity)
+        order = _store.get_order(order_id)
+        if not order or order.get("seller_id") != seller["id"]:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        message = body.message.strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Please enter an update.")
+        entry = {
+            "id": new_id(),
+            "message": message[:400],
+            "created_at": now_iso(),
+            "author": "seller",
+            "buyer_notified": False,
+        }
+        buyer_notified = False
+        if body.notify_buyer:
+            buyer_notified = send_order_note_email(order, seller, message)
+            entry["buyer_notified"] = buyer_notified
+        timeline = list(order.get("timeline") or [])
+        timeline.append(entry)
+        order["timeline"] = timeline
+        saved = _store.update_order(order)
+        return {"order": saved, "note": entry, "buyer_notified": buyer_notified}
+
+    @app.post("/reviews")
+    def create_review(body: ReviewIn, _store: Store = Depends(db)):
+        product = _store.get_product(body.product_id)
+        if not product or not product_is_active(product):
+            raise HTTPException(status_code=404, detail="Product not found.")
+        review = {
+            "id": new_id(),
+            "rating": int(body.rating),
+            "comment": body.comment.strip()[:500],
+            "author_name": body.author_name.strip()[:80],
+            "order_reference": body.order_reference.strip()[:40],
+            "created_at": now_iso(),
+        }
+        reviews = product_reviews(product)
+        reviews.insert(0, review)
+        product["reviews"] = reviews[:50]
+        saved = _store.put_product(product)
+        return {"ok": True, "review": review, "product": public_product(saved)}
+
+    @app.post("/reports")
+    def report_listing(body: ReportIn, _store: Store = Depends(db)):
+        product = _store.get_product(body.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        seller = _store.get_seller(product.get("seller_id") or "")
+        ok = send_report_listing_email(
+            product=product,
+            seller=seller,
+            reason=body.reason.strip(),
+            reporter_name=body.reporter_name.strip(),
+            reporter_email=body.reporter_email.strip(),
+        )
+        if not ok:
+            raise HTTPException(status_code=500, detail="Could not send report. Please try again.")
+        return {"ok": True}
 
     @app.post("/products")
     def create_product(
@@ -870,6 +1002,27 @@ def create_app() -> FastAPI:
             "products_this_month": len(products_month),
             "products_total": len(products),
         }
+
+    @app.post("/admin/users/confirm-pending")
+    def admin_confirm_pending_users(
+        _: Identity = Depends(require_admin),
+    ):
+        confirmed = confirm_unconfirmed_cognito_users()
+        return {"ok": True, "confirmed": confirmed, "count": len(confirmed)}
+
+    @app.post("/admin/users/{email}/confirm")
+    def admin_confirm_user(
+        email: str,
+        _: Identity = Depends(require_admin),
+    ):
+        target = email.strip().lower()
+        if "@" not in target:
+            raise HTTPException(status_code=400, detail="Enter a valid email.")
+        try:
+            confirm_cognito_user(target)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Could not confirm user.") from exc
+        return {"ok": True, "email": target}
 
     @app.delete("/admin/users/{email}")
     def admin_delete_user(

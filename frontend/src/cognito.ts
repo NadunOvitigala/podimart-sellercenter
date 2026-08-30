@@ -33,7 +33,7 @@ function cognitoMessage(err: unknown): string {
     return "Your email is already confirmed. Enter your password and open your shop.";
   }
   if (message.includes("UserNotConfirmedException")) {
-    return "Please enter the email code we sent you.";
+    return "Your account is not active yet. If you signed up before, contact podimart.lk support.";
   }
   if (message.includes("NotAuthorizedException") || message.includes("UserNotFound")) {
     return "Email or password is wrong.";

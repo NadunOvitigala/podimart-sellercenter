@@ -46,6 +46,8 @@ export type Product = {
   lead_time: string;
   delivery_charge?: number;
   delivery_note?: string;
+  offers_pickup?: boolean;
+  offers_delivery?: boolean;
   image_url: string;
   image_urls?: string[];
   video_urls?: string[];
@@ -92,6 +94,16 @@ export type Order = {
   buyer_phone: string;
   buyer_email: string;
   note: string;
+  timeline?: OrderTimelineEntry[];
   created_at: string;
   confirmed_at?: string;
+  completed_at?: string;
+};
+
+export type OrderTimelineEntry = {
+  id: string;
+  message: string;
+  created_at: string;
+  author?: string;
+  buyer_notified?: boolean;
 };

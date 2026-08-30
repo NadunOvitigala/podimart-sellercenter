@@ -296,3 +296,73 @@ def send_order_confirmed_email(order: dict, seller: dict) -> bool:
         return False
     subject = f"Order confirmed — {order.get('reference')} · podimart.lk"
     return send_email(to, subject, order_confirmed_buyer_message(order, seller))
+
+
+def order_completed_buyer_message(order: dict, seller: dict) -> str:
+    shop = seller.get("name") or order.get("seller_name") or "the seller"
+    return (
+        f"Hi {order.get('buyer_name') or 'there'},\n\n"
+        f"Your order {order.get('reference')} with {shop} is marked as completed.\n\n"
+        f"Product: {order.get('product_name')}\n"
+        f"Thank you for ordering on podimart.lk.\n\n"
+        f"— podimart.lk"
+    )
+
+
+def send_order_completed_email(order: dict, seller: dict) -> bool:
+    to = (order.get("buyer_email") or "").strip()
+    if not to:
+        return False
+    subject = f"Order completed — {order.get('reference')} · podimart.lk"
+    return send_email(to, subject, order_completed_buyer_message(order, seller))
+
+
+def order_note_buyer_message(order: dict, seller: dict, message: str) -> str:
+    shop = seller.get("name") or order.get("seller_name") or "the seller"
+    return (
+        f"Hi {order.get('buyer_name') or 'there'},\n\n"
+        f"{shop} sent an update for order {order.get('reference')}:\n\n"
+        f"{message}\n\n"
+        f"Product: {order.get('product_name')}\n\n"
+        f"— podimart.lk"
+    )
+
+
+def send_order_note_email(order: dict, seller: dict, message: str) -> bool:
+    to = (order.get("buyer_email") or "").strip()
+    if not to:
+        return False
+    subject = f"Order update — {order.get('reference')} · podimart.lk"
+    return send_email(to, subject, order_note_buyer_message(order, seller, message))
+
+
+def send_report_listing_email(
+    *,
+    product: dict,
+    seller: dict | None,
+    reason: str,
+    reporter_name: str,
+    reporter_email: str,
+) -> bool:
+    to = (settings.contact_to_email or "").strip()
+    if not to:
+        print("[report skipped] CONTACT_TO_EMAIL not set")
+        return False
+    shop = (seller or {}).get("name") or product.get("seller_name") or "—"
+    slug = (seller or {}).get("slug") or product.get("seller_slug") or ""
+    shop_url = f"{settings.public_url.rstrip('/')}/shop/{slug}" if slug else settings.public_url
+    product_url = f"{settings.public_url.rstrip('/')}/product/{product.get('id')}"
+    body = (
+        f"A listing was reported on podimart.lk.\n\n"
+        f"Product: {product.get('name')}\n"
+        f"Product ID: {product.get('id')}\n"
+        f"Code: {product.get('code') or '—'}\n"
+        f"Shop: {shop}\n"
+        f"Product page: {product_url}\n"
+        f"Shop page: {shop_url}\n\n"
+        f"Reason:\n{reason}\n\n"
+        f"Reporter: {reporter_name or '—'}\n"
+        f"Reporter email: {reporter_email or '—'}\n"
+    )
+    subject = f"Listing report — {product.get('name') or product.get('id')}"
+    return send_email(to, subject, body, reply_to=reporter_email or None)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, displayPrice, formatPrice, mediaUrl, productCode } from "../api";
 import { useAuth } from "../auth";
+import { listingCompleteness } from "../listingCompleteness";
 import { PUBLIC_URL } from "../sites";
 import type { Category, Product, Seller } from "../types";
 
@@ -307,6 +308,7 @@ export function ListingsPage() {
                       <th className="col-options">Options</th>
                       <th className="col-category">Category</th>
                       <th className="col-status">Status</th>
+                      <th className="col-score">Listing score</th>
                       <th className="col-actions">Actions</th>
                     </tr>
                   </thead>
@@ -320,6 +322,7 @@ export function ListingsPage() {
                       const rowBusy = busyId === product.id;
                       const categoryLabel =
                         categoryNames.get(product.category) || product.category || "—";
+                      const completeness = listingCompleteness(product);
                       return (
                         <tr
                           key={product.id}
@@ -378,6 +381,12 @@ export function ListingsPage() {
                               {isActive ? "Active" : "Disabled"}
                             </span>
                           </td>
+                          <td className="col-score">
+                            <div className="listing-score">
+                              <strong>{completeness.score}%</strong>
+                              <span>{completeness.tips[0]}</span>
+                            </div>
+                          </td>
                           <td className="col-actions">
                             <RowActions
                               productId={product.id}
@@ -417,6 +426,7 @@ export function ListingsPage() {
                   const rowBusy = busyId === product.id;
                   const categoryLabel =
                     categoryNames.get(product.category) || product.category || "—";
+                  const completeness = listingCompleteness(product);
                   return (
                     <article
                       key={product.id}
@@ -467,6 +477,12 @@ export function ListingsPage() {
                         <div>
                           <dt>Category</dt>
                           <dd>{categoryLabel}</dd>
+                        </div>
+                        <div>
+                          <dt>Score</dt>
+                          <dd>
+                            {completeness.score}% · {completeness.tips[0]}
+                          </dd>
                         </div>
                       </dl>
                       {isActive ? (
