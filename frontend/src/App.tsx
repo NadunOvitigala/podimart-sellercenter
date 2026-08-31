@@ -7,6 +7,7 @@ import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingsPage } from "./pages/ListingsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ProductFormPage } from "./pages/ProductFormPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/confirm" element={<Navigate to="/login" replace />} />
             <Route path="/dashboard" element={<Navigate to="/dashboard/listings" replace />} />

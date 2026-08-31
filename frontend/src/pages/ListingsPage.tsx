@@ -34,12 +34,14 @@ function RowActions({
   productId,
   isActive,
   busy,
+  viewHref,
   onStatus,
   onRemove,
 }: {
   productId: string;
   isActive: boolean;
   busy: boolean;
+  viewHref?: string;
   onStatus: () => void;
   onRemove: () => void;
 }) {
@@ -67,6 +69,16 @@ function RowActions({
       <Link className="listings-action-link" to={`/dashboard/edit/${productId}`}>
         Edit
       </Link>
+      {viewHref ? (
+        <a
+          className="listings-action-link listings-action-view"
+          href={viewHref}
+          target="_blank"
+          rel="noreferrer"
+        >
+          View product
+        </a>
+      ) : null}
       <button
         type="button"
         className={open ? "listings-action-more is-open" : "listings-action-more"}
@@ -116,6 +128,13 @@ export function ListingsPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [busyId, setBusyId] = useState("");
+  const [shareMsg, setShareMsg] = useState("");
+
+  useEffect(() => {
+    if (!shareMsg) return;
+    const timer = window.setTimeout(() => setShareMsg(""), 2500);
+    return () => window.clearTimeout(timer);
+  }, [shareMsg]);
 
   useEffect(() => {
     api.categories().then(setCategories).catch(() => undefined);
@@ -222,6 +241,16 @@ export function ListingsPage() {
   const publicShop = `${PUBLIC_URL}/shop/${seller.slug}`;
   const coverUrl = mediaUrl(seller.avatar_url);
 
+  async function shareShop() {
+    try {
+      await navigator.clipboard.writeText(publicShop);
+      setShareMsg("Shop link copied — paste it anywhere to share all your products.");
+    } catch {
+      setShareMsg("");
+      window.prompt("Copy your shop link:", publicShop);
+    }
+  }
+
   return (
     <>
       <section
@@ -233,11 +262,60 @@ export function ListingsPage() {
             <div className="section-head">
               <div>
                 <h1>Welcome {firstShopName(seller.name)}'s Shop</h1>
-                <p>
-                  <a className="text-link" href={publicShop} target="_blank" rel="noreferrer">
+                <div className="shop-cover-links">
+                  <a className="shop-cover-link" href={publicShop} target="_blank" rel="noreferrer">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M14 3h7v7"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M10 14L21 3"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                     View your shop
                   </a>
-                </p>
+                  <button type="button" className="shop-cover-link" onClick={() => void shareShop()}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M12 3v12"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M8 7l4-4 4 4"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Share my shop
+                  </button>
+                </div>
+                {shareMsg ? <p className="share-shop-msg">{shareMsg}</p> : null}
               </div>
             </div>
           </div>
@@ -392,6 +470,9 @@ export function ListingsPage() {
                               productId={product.id}
                               isActive={isActive}
                               busy={rowBusy}
+                              viewHref={
+                                isActive ? `${PUBLIC_URL}/product/${product.id}` : undefined
+                              }
                               onStatus={() =>
                                 void setStatus(product.id, isActive ? "disabled" : "active")
                               }
@@ -485,23 +566,14 @@ export function ListingsPage() {
                           </dd>
                         </div>
                       </dl>
-                      {isActive ? (
-                        <a
-                          className="listings-item-sub"
-                          href={`${PUBLIC_URL}/product/${product.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View on marketplace
-                        </a>
-                      ) : (
-                        <span className="listings-item-sub">Hidden from marketplace</span>
-                      )}
                       <div className="listings-mobile-actions">
                         <RowActions
                           productId={product.id}
                           isActive={isActive}
                           busy={rowBusy}
+                          viewHref={
+                            isActive ? `${PUBLIC_URL}/product/${product.id}` : undefined
+                          }
                           onStatus={() =>
                             void setStatus(product.id, isActive ? "disabled" : "active")
                           }

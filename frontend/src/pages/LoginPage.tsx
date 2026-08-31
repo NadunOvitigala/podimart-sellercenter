@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, getShopDraft } from "../api";
 import { useAuth } from "../auth";
 import { cognitoEnabled, signInCognito } from "../cognito";
@@ -10,10 +10,14 @@ function FieldLabel({ children }: { children: ReactNode }) {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState(
+    params.get("reset") === "1" ? "Password updated. Log in with your new password." : "",
+  );
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -57,6 +61,7 @@ export function LoginPage() {
 
         <form className="form auth-form" onSubmit={onSubmit}>
           {error ? <div className="error">{error}</div> : null}
+          {info ? <div className="ok">{info}</div> : null}
           <label>
             <FieldLabel>Email</FieldLabel>
             <input
@@ -78,6 +83,11 @@ export function LoginPage() {
               autoComplete="current-password"
             />
           </label>
+          <p className="auth-forgot">
+            <Link to={`/reset-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}>
+              Forgot password?
+            </Link>
+          </p>
           <button className="btn btn-clay btn-auth-submit" type="submit">
             Log in
           </button>

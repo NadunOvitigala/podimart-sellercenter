@@ -176,7 +176,12 @@ export function Layout() {
         aria-label="More menu"
       >
         <div className="more-sheet-head">
-          <h2>Menu</h2>
+          <div>
+            <h2>{loggedIn ? "My shop" : "Menu"}</h2>
+            {loggedIn ? (
+              <p className="more-sheet-subtitle">Manage listings, orders, and your shop profile.</p>
+            ) : null}
+          </div>
           <button type="button" className="more-sheet-close" onClick={closeMenu}>
             Close
           </button>
@@ -184,57 +189,104 @@ export function Layout() {
         <nav className="more-sheet-nav">
           {loggedIn ? (
             <>
-              <p className="more-sheet-section-label">My shop</p>
-              <NavLink to="/" end onClick={closeMenu}>
-                Home
+              <div className="more-sheet-group">
+                <NavLink className="more-sheet-item" to="/dashboard/listings" onClick={closeMenu}>
+                  <span className="more-sheet-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+                      <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  <span className="more-sheet-item-copy">
+                    <strong>Listings</strong>
+                    <span>View and edit your products</span>
+                  </span>
+                </NavLink>
+                <NavLink className="more-sheet-item" to="/dashboard/orders" onClick={closeMenu}>
+                  <span className="more-sheet-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 6h14l-1.5 12H7.5L6 6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                      <path d="M9 10h6M9 14h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  <span className="more-sheet-item-copy">
+                    <strong>Orders</strong>
+                    <span>See new and confirmed orders</span>
+                  </span>
+                </NavLink>
+                <NavLink className="more-sheet-item" to="/dashboard/profile" onClick={closeMenu}>
+                  <span className="more-sheet-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="2" />
+                      <path d="M5 20c1.2-3 4.4-5 7-5s5.8 2 7 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  <span className="more-sheet-item-copy">
+                    <strong>Profile settings</strong>
+                    <span>Shop name, photo, and contact</span>
+                  </span>
+                </NavLink>
+              </div>
+
+              <NavLink className="btn btn-clay more-sheet-cta" to="/dashboard/new" onClick={closeMenu}>
+                + Add listing
               </NavLink>
-              <NavLink to="/dashboard/listings" onClick={closeMenu}>
-                Listings
-              </NavLink>
-              <NavLink to="/dashboard/orders" onClick={closeMenu}>
-                Orders
-              </NavLink>
-              <NavLink to="/dashboard/profile" onClick={closeMenu}>
-                Profile settings
-              </NavLink>
+
+              <p className="more-sheet-section-label">Marketplace &amp; help</p>
+              <div className="more-sheet-links">
+                <a href={PUBLIC_URL} onClick={closeMenu}>
+                  View podimart.lk
+                </a>
+                <NavLink to="/about" onClick={closeMenu}>
+                  About us
+                </NavLink>
+                <NavLink to="/contact" onClick={closeMenu}>
+                  Contact us
+                </NavLink>
+              </div>
+
+              <div className="more-sheet-foot">
+                <button
+                  className="more-sheet-logout"
+                  type="button"
+                  onClick={() => {
+                    closeMenu();
+                    logout();
+                    navigate("/login");
+                  }}
+                >
+                  Log out
+                </button>
+              </div>
             </>
           ) : (
             <>
               <p className="more-sheet-section-label">Get started</p>
-              <NavLink to="/" end onClick={closeMenu}>
-                Home
-              </NavLink>
-              <NavLink to="/login" onClick={closeMenu}>
-                Log in
-              </NavLink>
-              <NavLink to="/signup" onClick={closeMenu}>
-                Sign up
-              </NavLink>
+              <div className="more-sheet-links">
+                <NavLink to="/" end onClick={closeMenu}>
+                  Home
+                </NavLink>
+                <NavLink to="/login" onClick={closeMenu}>
+                  Log in
+                </NavLink>
+                <NavLink to="/signup" onClick={closeMenu}>
+                  Open a free shop
+                </NavLink>
+              </div>
+              <p className="more-sheet-section-label">Marketplace &amp; help</p>
+              <div className="more-sheet-links">
+                <a href={PUBLIC_URL} onClick={closeMenu}>
+                  View podimart.lk
+                </a>
+                <NavLink to="/about" onClick={closeMenu}>
+                  About us
+                </NavLink>
+                <NavLink to="/contact" onClick={closeMenu}>
+                  Contact us
+                </NavLink>
+              </div>
             </>
           )}
-          <p className="more-sheet-section-label">Marketplace</p>
-          <a href={PUBLIC_URL} onClick={closeMenu}>
-            Browse podimart.lk
-          </a>
-          <NavLink to="/about" onClick={closeMenu}>
-            About us
-          </NavLink>
-          <NavLink to="/contact" onClick={closeMenu}>
-            Contact us
-          </NavLink>
-          {loggedIn ? (
-            <button
-              className="more-sheet-logout"
-              type="button"
-              onClick={() => {
-                closeMenu();
-                logout();
-                navigate("/login");
-              }}
-            >
-              Log out
-            </button>
-          ) : null}
         </nav>
       </div>
 
