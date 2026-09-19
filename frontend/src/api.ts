@@ -103,6 +103,16 @@ export const api = {
       `/me/orders/${encodeURIComponent(orderId)}/confirm`,
       { method: "POST" },
     ),
+  completeOrder: (orderId: string) =>
+    request<{ order: Order; buyer_notified: boolean; already_completed: boolean }>(
+      `/me/orders/${encodeURIComponent(orderId)}/complete`,
+      { method: "POST" },
+    ),
+  addOrderNote: (orderId: string, body: { message: string; notify_buyer: boolean }) =>
+    request<{ order: Order; buyer_notified: boolean }>(
+      `/me/orders/${encodeURIComponent(orderId)}/notes`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
   bootstrap: (body: ShopDraft) =>
     request<{ seller: Seller; products: Product[] }>("/me/bootstrap", {
       method: "POST",

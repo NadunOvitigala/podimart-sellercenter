@@ -55,21 +55,35 @@ Conditions:
   ShouldDeployAdmin: !Equals [!Ref DeployAdmin, "true"]
 
 Resources:
+  CognitoPreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: cognito_presignup/
+      Handler: handler.handler
+      Timeout: 5
+      MemorySize: 128
+
+  CognitoPreSignUpInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CognitoPreSignUpFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt SellerUserPool.Arn
+
   SellerUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: podimart-sellercenter
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      LambdaConfig:
+        PreSignUp: !GetAtt CognitoPreSignUpFunction.Arn
       EmailConfiguration:
         EmailSendingAccount: DEVELOPER
         From: "podimart.lk <no-reply@podimart.lk>"
         ReplyToEmailAddress: hello@podimart.lk
         SourceArn: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/podimart.lk
-      VerificationMessageTemplate:
-        DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailSubject: Your podimart.lk Seller Center code
-        EmailMessage: "Your Podimart Seller Center confirmation code is {####}."
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -492,6 +506,7 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
+                - cognito-idp:AdminConfirmSignUp
                 - cognito-idp:AdminDeleteUser
                 - cognito-idp:ListUsers
               Resource: !GetAtt SellerUserPool.Arn

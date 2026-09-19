@@ -33,7 +33,7 @@ function cognitoMessage(err: unknown): string {
     return "Your email is already confirmed. Enter your password and open your shop.";
   }
   if (message.includes("UserNotConfirmedException")) {
-    return "Please enter the email code we sent you.";
+    return "Your account is not active yet. If you signed up before, contact podimart.lk support.";
   }
   if (message.includes("NotAuthorizedException") || message.includes("UserNotFound")) {
     return "Email or password is wrong.";
@@ -47,7 +47,17 @@ function cognitoMessage(err: unknown): string {
   if (message.includes("InvalidPassword")) {
     return "Password must be at least 8 characters.";
   }
+  if (message.includes("LimitExceededException")) {
+    return "Too many attempts. Wait a few minutes and try again.";
+  }
+  if (message.includes("InvalidParameterException") && /no registered\/verified email/i.test(message)) {
+    return "This account has no verified email. Contact podimart.lk support.";
+  }
   return message;
+}
+
+function cognitoUser(email: string): CognitoUser {
+  return new CognitoUser({ Username: email.trim().toLowerCase(), Pool: pool() });
 }
 
 export function signUpCognito(email: string, password: string, name: string): Promise<void> {
@@ -99,10 +109,42 @@ export function resendCognitoCode(email: string): Promise<void> {
 
 export function signInCognito(email: string, password: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool() });
+    const user = cognitoUser(email);
     user.authenticateUser(new AuthenticationDetails({ Username: email, Password: password }), {
       onSuccess(session: CognitoUserSession) {
         resolve(session.getIdToken().getJwtToken());
+      },
+      onFailure(err: Error) {
+        reject(new Error(cognitoMessage(err)));
+      },
+    });
+  });
+}
+
+export function requestPasswordReset(email: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = cognitoUser(email);
+    user.forgotPassword({
+      onSuccess() {
+        resolve();
+      },
+      onFailure(err: Error) {
+        reject(new Error(cognitoMessage(err)));
+      },
+    });
+  });
+}
+
+export function completePasswordReset(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = cognitoUser(email);
+    user.confirmPassword(code.trim(), newPassword, {
+      onSuccess() {
+        resolve();
       },
       onFailure(err: Error) {
         reject(new Error(cognitoMessage(err)));

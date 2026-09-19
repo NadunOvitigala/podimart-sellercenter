@@ -76,6 +76,8 @@ export function OrdersPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [noteNotify, setNoteNotify] = useState<Record<string, boolean>>({});
   const monthRange = getPresetRange("month");
   const [datePreset, setDatePreset] = useState<DatePreset>("month");
   const [fromDate, setFromDate] = useState(monthRange.from);
@@ -165,14 +167,72 @@ export function OrdersPage() {
     }
   }
 
+  async function completeOrder(order: Order) {
+    if (
+      !window.confirm(
+        `Mark order ${order.reference} as completed? The buyer will get an email if they shared one.`,
+      )
+    ) {
+      return;
+    }
+    setBusyId(`complete:${order.id}`);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api.completeOrder(order.id);
+      setOrders((items) =>
+        items.map((item) => (item.id === order.id ? result.order : item)),
+      );
+      setNotice(
+        result.buyer_notified
+          ? `Order ${result.order.reference} completed. Buyer email sent.`
+          : `Order ${result.order.reference} completed.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not complete order.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function addNote(order: Order) {
+    const message = (noteDrafts[order.id] || "").trim();
+    if (!message) {
+      setError("Enter an update note first.");
+      return;
+    }
+    setBusyId(`note:${order.id}`);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api.addOrderNote(order.id, {
+        message,
+        notify_buyer: Boolean(noteNotify[order.id]),
+      });
+      setOrders((items) =>
+        items.map((item) => (item.id === order.id ? result.order : item)),
+      );
+      setNoteDrafts((current) => ({ ...current, [order.id]: "" }));
+      setNotice(
+        result.buyer_notified
+          ? `Update added and emailed to the buyer.`
+          : `Update added to order ${order.reference}.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add update.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <div className="wrap orders-page">
       <div className="orders-head">
         <div>
           <h1>Orders</h1>
           <p className="lede">
-            New orders show as pending. Confirm with the buyer, then tap Confirm — the buyer gets an
-            email.
+            Pending → Confirm with buyer → Confirm here → Complete when done. Add updates anytime
+            (optional email to buyer).
           </p>
         </div>
       </div>
@@ -297,6 +357,7 @@ export function OrdersPage() {
                         const status = (order.status || "pending").toLowerCase();
                         const isPending = status === "pending";
                         const isConfirmed = status === "confirmed";
+                        const isCompleted = status === "completed";
                         return (
                           <tr key={order.id}>
                             <td>
@@ -304,7 +365,11 @@ export function OrdersPage() {
                               <div className="cell-sub">
                                 <span
                                   className={
-                                    isConfirmed ? "status-pill active" : "status-pill pending"
+                                    isCompleted
+                                      ? "status-pill active"
+                                      : isConfirmed
+                                        ? "status-pill active"
+                                        : "status-pill pending"
                                   }
                                 >
                                   {status}
@@ -339,20 +404,29 @@ export function OrdersPage() {
                             </td>
                             <td>{formatDisplayDateTime(order.created_at)}</td>
                             <td>
-                              {isPending ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-clay btn-sm"
-                                  disabled={busyId === order.id}
-                                  onClick={() => void confirmOrder(order)}
-                                >
-                                  {busyId === order.id ? "Confirming…" : "Confirm"}
-                                </button>
-                              ) : isConfirmed ? (
-                                <span className="muted">Confirmed</span>
-                              ) : (
-                                <span className="muted">—</span>
-                              )}
+                              <div className="orders-action-stack">
+                                {isPending ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-clay btn-sm"
+                                    disabled={busyId === order.id}
+                                    onClick={() => void confirmOrder(order)}
+                                  >
+                                    {busyId === order.id ? "Confirming…" : "Confirm"}
+                                  </button>
+                                ) : null}
+                                {isConfirmed ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-sm"
+                                    disabled={busyId === `complete:${order.id}`}
+                                    onClick={() => void completeOrder(order)}
+                                  >
+                                    {busyId === `complete:${order.id}` ? "Saving…" : "Complete"}
+                                  </button>
+                                ) : null}
+                                {isCompleted ? <span className="muted">Completed</span> : null}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -366,13 +440,17 @@ export function OrdersPage() {
                     const status = (order.status || "pending").toLowerCase();
                     const isPending = status === "pending";
                     const isConfirmed = status === "confirmed";
+                    const isCompleted = status === "completed";
                     const totalLabel =
                       order.total > 0 ? formatPrice(order.total) : order.total_label;
+                    const timeline = order.timeline || [];
                     return (
                       <article
                         key={order.id}
                         className={
-                          isConfirmed ? "orders-mobile-card is-confirmed" : "orders-mobile-card"
+                          isCompleted || isConfirmed
+                            ? "orders-mobile-card is-confirmed"
+                            : "orders-mobile-card"
                         }
                       >
                         <div className="orders-mobile-top">
@@ -380,7 +458,7 @@ export function OrdersPage() {
                             <strong>{order.reference}</strong>
                             <span
                               className={
-                                isConfirmed ? "status-pill active" : "status-pill pending"
+                                isPending ? "status-pill pending" : "status-pill active"
                               }
                             >
                               {status}
@@ -437,6 +515,64 @@ export function OrdersPage() {
                           ) : null}
                         </dl>
 
+                        {timeline.length > 0 ? (
+                          <div className="orders-timeline">
+                            <h3>Updates</h3>
+                            <ul>
+                              {timeline
+                                .slice()
+                                .reverse()
+                                .map((entry) => (
+                                  <li key={entry.id || entry.created_at}>
+                                    <strong>{entry.message}</strong>
+                                    <span>
+                                      {formatDisplayDateTime(entry.created_at)}
+                                      {entry.buyer_notified ? " · emailed" : ""}
+                                    </span>
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        <div className="orders-note-box">
+                          <label>
+                            Add update
+                            <textarea
+                              rows={2}
+                              placeholder='e.g. Ready for pickup'
+                              value={noteDrafts[order.id] || ""}
+                              onChange={(e) =>
+                                setNoteDrafts((current) => ({
+                                  ...current,
+                                  [order.id]: e.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="orders-note-check">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(noteNotify[order.id])}
+                              onChange={(e) =>
+                                setNoteNotify((current) => ({
+                                  ...current,
+                                  [order.id]: e.target.checked,
+                                }))
+                              }
+                            />
+                            Email this update to the buyer
+                          </label>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            disabled={busyId === `note:${order.id}`}
+                            onClick={() => void addNote(order)}
+                          >
+                            {busyId === `note:${order.id}` ? "Saving…" : "Post update"}
+                          </button>
+                        </div>
+
                         <div className="orders-mobile-actions">
                           {isPending ? (
                             <button
@@ -447,9 +583,22 @@ export function OrdersPage() {
                             >
                               {busyId === order.id ? "Confirming…" : "Confirm order"}
                             </button>
-                          ) : (
-                            <span className="orders-mobile-confirmed-label">Order confirmed</span>
-                          )}
+                          ) : null}
+                          {isConfirmed ? (
+                            <button
+                              type="button"
+                              className="btn btn-clay"
+                              disabled={busyId === `complete:${order.id}`}
+                              onClick={() => void completeOrder(order)}
+                            >
+                              {busyId === `complete:${order.id}`
+                                ? "Saving…"
+                                : "Mark completed"}
+                            </button>
+                          ) : null}
+                          {isCompleted ? (
+                            <span className="orders-mobile-confirmed-label">Order completed</span>
+                          ) : null}
                         </div>
                       </article>
                     );

@@ -32,6 +32,8 @@ const empty = {
   lead_time: "Order 2 days before",
   delivery_charge: "0",
   delivery_note: "",
+  offers_pickup: true,
+  offers_delivery: true,
   image_urls: [] as string[],
   video_urls: [] as string[],
   payment_methods: ["cash_on_delivery", "bank_transfer"] as string[],
@@ -131,6 +133,8 @@ export function ProductFormPage() {
         lead_time: product.lead_time,
         delivery_charge: String(product.delivery_charge ?? 0),
         delivery_note: product.delivery_note || "",
+        offers_pickup: product.offers_pickup !== false,
+        offers_delivery: product.offers_delivery !== false,
         image_urls: listingPhotos(product),
         video_urls: (product.video_urls ?? []).filter(Boolean),
         payment_methods: product.payment_methods?.length ? product.payment_methods : [],
@@ -279,6 +283,8 @@ export function ProductFormPage() {
       lead_time: form.lead_time,
       delivery_charge: Number(form.delivery_charge) || 0,
       delivery_note: form.delivery_note.trim(),
+      offers_pickup: form.offers_pickup,
+      offers_delivery: form.offers_delivery,
       image_url: form.image_urls[0] || "",
       image_urls: form.image_urls,
       video_urls: form.video_urls,
@@ -406,6 +412,24 @@ export function ProductFormPage() {
                 onChange={(e) => setForm({ ...form, delivery_note: e.target.value })}
                 placeholder="Colombo only · pickup available"
               />
+            </label>
+          </div>
+          <div className="form-row fulfillment-row">
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={form.offers_pickup}
+                onChange={(e) => setForm({ ...form, offers_pickup: e.target.checked })}
+              />
+              Pickup available
+            </label>
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={form.offers_delivery}
+                onChange={(e) => setForm({ ...form, offers_delivery: e.target.checked })}
+              />
+              Delivery available
             </label>
           </div>
         </Panel>

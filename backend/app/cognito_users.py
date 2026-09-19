@@ -41,3 +41,29 @@ def list_cognito_users() -> list[dict[str, Any]]:
         if not token:
             break
     return sorted(users, key=lambda item: item.get("created_at") or "", reverse=True)
+
+
+def confirm_cognito_user(email: str) -> None:
+    if settings.auth_mode.lower() != "cognito" or not settings.cognito_user_pool_id:
+        return
+    client = boto3.client("cognito-idp", region_name=settings.aws_region)
+    client.admin_confirm_sign_up(
+        UserPoolId=settings.cognito_user_pool_id,
+        Username=email.strip().lower(),
+    )
+
+
+def confirm_unconfirmed_cognito_users() -> list[str]:
+    confirmed: list[str] = []
+    for user in list_cognito_users():
+        if (user.get("status") or "").upper() != "UNCONFIRMED":
+            continue
+        email = user.get("email") or ""
+        if not email:
+            continue
+        try:
+            confirm_cognito_user(email)
+            confirmed.append(email)
+        except Exception:
+            continue
+    return confirmed
