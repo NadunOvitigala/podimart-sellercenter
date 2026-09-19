@@ -1252,6 +1252,7 @@ a.listings-item-sub:hover {
   color: #8a2b13;
   border-radius: 4px;
   padding: 10px 12px;
+  scroll-margin-top: 96px;
 }
 
 .ok {

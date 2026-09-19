@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, savePendingCover, setPendingCover, setShopDraft } from "../api";
 import { useAuth } from "../auth";
@@ -19,6 +19,8 @@ export function SignupPage() {
   const { login } = useAuth();
   const [cities, setCities] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [errorTick, setErrorTick] = useState(0);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [coverPreview, setCoverPreview] = useState("");
   const [coverFileName, setCoverFileName] = useState("");
   const [form, setForm] = useState({
@@ -35,39 +37,55 @@ export function SignupPage() {
     api.cities().then(setCities).catch(() => undefined);
   }, []);
 
+  function showError(message: string) {
+    setError(message);
+    setErrorTick((tick) => tick + 1);
+  }
+
+  useLayoutEffect(() => {
+    if (!error) return;
+    const node = errorRef.current;
+    if (!node) return;
+    const header = document.querySelector(".site-header");
+    const headerHeight = header instanceof HTMLElement ? header.getBoundingClientRect().height : 0;
+    const top = node.getBoundingClientRect().top + window.scrollY - headerHeight - 12;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: Math.max(0, top), behavior: reduceMotion ? "auto" : "smooth" });
+  }, [error, errorTick]);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     if (!form.name.trim()) {
-      setError("Shop name is required.");
+      showError("Shop name is required.");
       return;
     }
     if (!form.email.trim()) {
-      setError("Email is required.");
+      showError("Email is required.");
       return;
     }
     if (!form.password) {
-      setError("Password is required.");
+      showError("Password is required.");
       return;
     }
     if (!form.passwordConfirm) {
-      setError("Please confirm your password.");
+      showError("Please confirm your password.");
       return;
     }
     if (form.password !== form.passwordConfirm) {
-      setError("Passwords do not match.");
+      showError("Passwords do not match.");
       return;
     }
     if (!form.city) {
-      setError("Province is required.");
+      showError("Province is required.");
       return;
     }
     if (!form.whatsapp.trim()) {
-      setError("WhatsApp number is required.");
+      showError("WhatsApp number is required.");
       return;
     }
     if (!form.phone.trim()) {
-      setError("Call number is required.");
+      showError("Call number is required.");
       return;
     }
     try {
@@ -104,7 +122,7 @@ export function SignupPage() {
       await savePendingCover();
       navigate("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create shop.");
+      showError(err instanceof Error ? err.message : "Could not create shop.");
     }
   }
 
@@ -121,7 +139,11 @@ export function SignupPage() {
         </header>
 
         <form className="form auth-form" onSubmit={onSubmit}>
-          {error ? <div className="error">{error}</div> : null}
+          {error ? (
+            <div className="error" ref={errorRef} role="alert">
+              {error}
+            </div>
+          ) : null}
 
           <section className="form-section">
             <h2 className="form-section-title">Shop details</h2>

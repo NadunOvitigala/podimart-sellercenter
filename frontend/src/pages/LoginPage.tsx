@@ -15,7 +15,7 @@ export function LoginPage() {
   const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState(
+  const [info] = useState(
     params.get("reset") === "1" ? "Password updated. Log in with your new password." : "",
   );
 
